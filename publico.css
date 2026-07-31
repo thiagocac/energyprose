@@ -1,0 +1,246 @@
+/* ============================================================================
+   EnergyPRO — página pública de cadastro (/)
+   Visual reconstruído a partir do bundle original "Cadastro EnergyPRO":
+   mesma paleta, mesmas fontes (Jost nos títulos, DM Sans no corpo),
+   mesmos cantos arredondados e botões em pílula.
+   ============================================================================ */
+:root{
+  --navy:#1F2E4A;
+  --navy-esc:#1B2A45;
+  --navy-cl:#2E4470;
+  --laranja:#EF8B2E;
+  --laranja-esc:#C4741A;
+  --amarelo:#FFC61E;
+  --areia:#F6F4EF;
+  --areia-cl:#FCFBF8;
+  --areia-esc:#FBFAF6;
+  --linha:#E7E1D5;
+  --linha-campo:#DDD6C8;
+  --texto:#1F2E4A;
+  --texto-md:#6B7688;
+  --texto-cl:#5A6577;
+  --erro:#C0392B;
+  --ok:#1E7A4C;
+}
+
+*{margin:0;padding:0;box-sizing:border-box}
+html{-webkit-text-size-adjust:100%;scroll-behavior:smooth}
+body{
+  min-height:100vh;background:var(--areia);color:var(--texto);
+  font-family:'DM Sans',-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;
+  -webkit-font-smoothing:antialiased;
+}
+img{display:block;max-width:100%}
+button{font-family:inherit;cursor:pointer;border:0;background:none;color:inherit}
+input,select,textarea{font-family:inherit;color:inherit}
+.oculto{display:none !important}
+
+.faixa{max-width:1120px;margin:0 auto;padding:0 clamp(18px,4vw,40px)}
+
+/* ===== Topo ===== */
+.topo{
+  position:sticky;top:0;z-index:20;background:rgba(255,255,255,.92);
+  backdrop-filter:blur(10px);border-bottom:1px solid var(--linha);
+}
+.topo-in{display:flex;align-items:center;justify-content:space-between;gap:16px;padding:14px 0}
+.topo img{width:clamp(124px,16vw,152px);height:auto;mix-blend-mode:multiply}
+.topo-acoes{display:flex;align-items:center;gap:10px}
+
+/* No celular não cabe logo + dois botões. O "Fazer meu cadastro" sai: o mesmo
+   atalho já existe no hero, logo abaixo. O acesso da equipe é o que precisa
+   continuar sempre à mão. */
+@media (max-width:620px){
+  .topo-acoes .b-escuro{display:none}
+  .topo-acoes .b-linha{padding:10px 14px;font-size:12.5px}
+  .topo img{width:112px}
+}
+
+/* ===== Botões ===== */
+.b{
+  display:inline-flex;align-items:center;justify-content:center;gap:9px;
+  border-radius:999px;font-weight:600;line-height:1;text-decoration:none;
+  transition:background .15s,border-color .15s,box-shadow .15s,color .15s;
+}
+.b-sol{background:linear-gradient(96deg,#FFC61E,#EF8B2E);color:var(--navy-esc);
+  padding:17px 28px;font-size:15px;box-shadow:0 10px 24px -12px rgba(239,139,46,.9)}
+.b-sol:hover{background:linear-gradient(96deg,#FFD34F,#F59A46);box-shadow:0 14px 28px -12px rgba(239,139,46,.9)}
+.b-sol:disabled{background:#E3DBCB;color:#98A0AD;box-shadow:none;cursor:default}
+.b-escuro{background:var(--navy);color:#fff;padding:12px 18px;font-size:13px;letter-spacing:.02em;white-space:nowrap}
+.b-escuro:hover{background:var(--navy-cl)}
+.b-linha{border:1px solid var(--linha-campo);background:#fff;color:var(--navy);padding:12px 18px;font-size:13px;white-space:nowrap}
+.b-linha:hover{border-color:var(--navy)}
+.b-grande{padding:18px 32px;font-size:16px}
+.b-enviar{background:var(--navy);color:#fff;box-shadow:0 10px 22px -14px rgba(31,46,74,.9)}
+.b-enviar:hover{background:var(--navy-cl)}
+.b-enviar:disabled{background:#94a0b4;cursor:default;box-shadow:none}
+
+/* ===== Hero ===== */
+.hero{
+  background:var(--navy-esc);color:#fff;overflow:hidden;
+  background-image:radial-gradient(70% 90% at 88% 6%, rgba(255,198,30,.20), rgba(255,198,30,0) 62%);
+}
+.hero-in{
+  display:grid;gap:clamp(32px,5vw,56px);align-items:center;
+  grid-template-columns:repeat(auto-fit,minmax(300px,1fr));
+  /* padding-block: o horizontal vem de .faixa e não pode ser sobrescrito */
+  padding-block:clamp(44px,7vw,84px);
+}
+.olho{font-weight:600;font-size:12px;line-height:1;letter-spacing:.18em;text-transform:uppercase;color:var(--amarelo);margin-bottom:18px}
+.hero h1{
+  font-family:'Jost',sans-serif;font-weight:600;letter-spacing:-.02em;
+  font-size:clamp(34px,5.2vw,56px);line-height:1.06;text-wrap:balance;
+}
+.hero p.lead{margin-top:20px;max-width:44ch;font-size:clamp(16px,1.4vw,18px);line-height:1.6;color:rgba(255,255,255,.76);text-wrap:pretty}
+.hero p.lead strong{color:#fff;font-weight:600}
+.hero-acoes{display:flex;flex-wrap:wrap;gap:12px;margin-top:32px;align-items:center}
+.hero-nota{font-size:14px;color:rgba(255,255,255,.6);padding:0 6px}
+.cartao-hero{background:rgba(255,255,255,.05);border:1px solid rgba(255,255,255,.14);border-radius:20px;padding:clamp(22px,3vw,32px)}
+.cartao-hero p.rot{font-weight:600;font-size:12px;line-height:1;letter-spacing:.16em;text-transform:uppercase;color:rgba(255,255,255,.5);margin-bottom:20px}
+.passos{display:grid;gap:16px}
+.passo{display:flex;gap:14px;align-items:baseline}
+.passo b{flex:0 0 26px;height:26px;border-radius:999px;background:rgba(255,198,30,.16);color:var(--amarelo);
+  font-weight:600;font-size:12px;line-height:26px;text-align:center}
+.passo span{font-size:16px;line-height:1.45;color:rgba(255,255,255,.86)}
+
+/* ===== Faixa de argumentos ===== */
+.tres{background:#fff;border-bottom:1px solid var(--linha)}
+.tres-in{display:grid;gap:clamp(20px,3vw,40px);grid-template-columns:repeat(auto-fit,minmax(240px,1fr));padding-block:clamp(28px,4vw,44px)}
+.tres h3{font-family:'Jost',sans-serif;font-weight:600;font-size:15px;line-height:1.3;letter-spacing:.01em;color:var(--navy);margin-bottom:8px}
+.tres p{font-size:15px;line-height:1.55;color:var(--texto-md);text-wrap:pretty}
+
+/* ===== Corpo do formulário ===== */
+main{max-width:900px;margin:0 auto;padding:clamp(36px,6vw,72px) clamp(18px,4vw,40px) 0}
+.cabeca{margin-bottom:clamp(24px,4vw,36px)}
+.cabeca h2{font-family:'Jost',sans-serif;font-weight:600;font-size:clamp(26px,3.4vw,36px);line-height:1.15;letter-spacing:-.015em;color:var(--navy)}
+.cabeca p{margin-top:12px;font-size:16px;line-height:1.6;color:var(--texto-md);max-width:60ch;text-wrap:pretty}
+
+/* Bloco, não grid: item de grid tem como bloco contêiner a própria célula, e
+   `position:sticky` dentro dela não tem para onde se mover — a barra de envio
+   ficava presa no fim do formulário em vez de acompanhar a rolagem. */
+form{display:block}
+form > *{margin-bottom:clamp(16px,2.4vw,24px)}
+form > *:last-child{margin-bottom:0}
+
+fieldset{border:1px solid var(--linha);background:#fff;border-radius:20px;padding:clamp(20px,3.2vw,34px);min-width:0}
+legend{padding:0;margin-bottom:22px;display:flex;align-items:center;gap:14px}
+legend .num{width:34px;height:34px;border-radius:999px;background:var(--navy);color:var(--amarelo);
+  font-weight:600;font-size:14px;line-height:34px;text-align:center;flex:none}
+legend .tit{font-family:'Jost',sans-serif;font-weight:600;font-size:20px;line-height:1.2;letter-spacing:-.01em;color:var(--navy)}
+
+.linhas{display:grid;gap:18px;grid-template-columns:repeat(auto-fit,minmax(220px,1fr))}
+.campo{display:flex;flex-direction:column;gap:7px;min-width:0}
+.campo.largo{grid-column:1/-1}
+.campo > span.rot{font-weight:500;font-size:13px;line-height:1.3;color:var(--texto-cl)}
+.campo input,.campo select,.campo textarea{
+  width:100%;border:1px solid var(--linha-campo);background:var(--areia-cl);border-radius:12px;
+  padding:14px 15px;font-size:16px;line-height:1.3;color:var(--navy);outline:none;
+  font-family:inherit;transition:border-color .15s,box-shadow .15s,background .15s;
+}
+.campo textarea{resize:vertical;min-height:88px;line-height:1.5}
+.campo select{appearance:none;background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='8' viewBox='0 0 12 8'%3E%3Cpath d='M1 1.5 6 6.5l5-5' stroke='%236B7688' stroke-width='1.8' fill='none' stroke-linecap='round'/%3E%3C/svg%3E");
+  background-repeat:no-repeat;background-position:right 15px center;padding-right:38px}
+.campo input:focus,.campo select:focus,.campo textarea:focus{
+  border-color:var(--laranja);background:#fff;box-shadow:0 0 0 3px rgba(239,139,46,.18)}
+.campo input[aria-invalid="true"]{border-color:var(--erro);background:#fff}
+.erro-campo{font-size:12.5px;line-height:1.35;color:var(--erro)}
+
+/* Área: urbana/rural */
+.opcoes{display:flex;gap:10px;flex-wrap:wrap}
+.opcoes label{
+  /* base 0 para os dois botões dividirem a coluna sem quebrar linha */
+  flex:1 1 0;min-width:0;display:flex;align-items:center;justify-content:center;gap:8px;
+  border:1px solid var(--linha-campo);background:var(--areia-cl);border-radius:12px;
+  padding:14px 15px;font-size:15px;cursor:pointer;transition:.15s;
+}
+.opcoes label:hover{border-color:var(--laranja)}
+.opcoes label.sel{border-color:var(--laranja);background:#FFF8EE;font-weight:600;box-shadow:0 0 0 3px rgba(239,139,46,.12)}
+.opcoes input{position:absolute;opacity:0;width:0;height:0}
+
+/* Anexos */
+.anexos{display:grid;gap:14px}
+.anexo-slot{
+  border:1px dashed var(--linha-campo);background:var(--areia-esc);border-radius:16px;
+  padding:16px 18px;display:flex;flex-direction:column;gap:10px;transition:.15s;
+}
+.anexo-slot.arrasta{border-color:var(--laranja);background:#FFF8EE}
+.anexo-topo{display:flex;align-items:baseline;justify-content:space-between;gap:12px;flex-wrap:wrap}
+.anexo-topo strong{font-size:15px;color:var(--navy)}
+.anexo-topo em{font-style:normal;font-size:12.5px;color:var(--texto-md)}
+.anexo-add{
+  align-self:flex-start;border:1px solid var(--linha-campo);background:#fff;border-radius:999px;
+  padding:10px 16px;font-size:13.5px;font-weight:600;color:var(--navy);transition:.15s;
+}
+.anexo-add:hover{border-color:var(--navy)}
+.arqs{list-style:none;display:grid;gap:7px}
+.arq{
+  display:flex;align-items:center;gap:10px;background:#fff;border:1px solid var(--linha);
+  border-radius:10px;padding:9px 12px;font-size:13.5px;
+}
+.arq .nome{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.arq .tam{color:var(--texto-md);font-size:12.5px;flex:none}
+.arq .x{flex:none;width:22px;height:22px;border-radius:50%;color:var(--texto-md);font-size:16px;line-height:20px;text-align:center}
+.arq .x:hover{background:#FBE9E7;color:var(--erro)}
+
+/* LGPD */
+.lgpd{display:flex;gap:12px;align-items:flex-start;cursor:pointer;font-size:14.5px;line-height:1.55;color:var(--texto-cl)}
+.lgpd input{margin-top:3px;width:18px;height:18px;flex:none;accent-color:var(--laranja);cursor:pointer}
+.lgpd a{color:var(--laranja-esc)}
+
+/* Avisos */
+.aviso{border-radius:14px;padding:14px 16px;font-size:14px;line-height:1.5}
+.aviso-erro{background:#FDECEA;border:1px solid #F5C6C0;color:#8E2A20}
+.aviso-ok{background:#E8F5EE;border:1px solid #BFE3CE;color:#14603A}
+.aviso-info{background:#FFF8EE;border:1px solid #F3DFC0;color:#8A5A16}
+
+/* Rodapé do formulário: progresso + enviar */
+/* Fundo sólido de propósito: `backdrop-filter` em barra fixa some ou pisca em
+   navegador antigo de celular, que é justamente o público desta página. */
+.rodape-form{
+  position:sticky;bottom:0;z-index:5;background:var(--areia);
+  border-top:1px solid var(--linha);margin-top:6px;padding:16px 0 22px;
+  box-shadow:0 -8px 20px -14px rgba(31,46,74,.35);
+}
+.rodape-in{display:flex;align-items:center;gap:20px;flex-wrap:wrap}
+.barra{flex:1;min-width:180px}
+.barra .trilho{height:5px;border-radius:999px;background:#E4DED0;overflow:hidden}
+.barra .trilho i{display:block;height:5px;border-radius:999px;background:linear-gradient(90deg,#FFC61E,#EF8B2E);width:0;transition:width .3s ease}
+.barra small{display:block;margin-top:9px;font-size:13px;line-height:1.3;color:var(--texto-md)}
+
+/* Envio dos arquivos */
+.up-linha{display:flex;align-items:center;gap:12px;font-size:13px;padding:5px 0}
+.up-linha .mini{flex:1;height:4px;border-radius:999px;background:#E4DED0;overflow:hidden}
+.up-linha .mini i{display:block;height:4px;background:var(--laranja);width:0;transition:width .3s}
+
+.spin{
+  display:inline-block;width:14px;height:14px;border-radius:50%;
+  border:2px solid rgba(255,255,255,.35);border-top-color:#fff;animation:gira .7s linear infinite;
+}
+@keyframes gira{to{transform:rotate(360deg)}}
+
+/* ===== Tela de confirmação ===== */
+.enviado{background:#fff;border:1px solid var(--linha);border-radius:20px;padding:clamp(24px,4vw,44px);animation:sobe .4s ease both}
+@keyframes sobe{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:none}}
+.enviado .check{
+  display:inline-block;width:46px;height:46px;border-radius:999px;
+  background:linear-gradient(96deg,#FFC61E,#EF8B2E);color:var(--navy-esc);
+  font-weight:600;font-size:20px;line-height:46px;text-align:center;
+}
+.enviado h2{margin-top:20px;font-family:'Jost',sans-serif;font-weight:600;font-size:clamp(24px,3.2vw,34px);line-height:1.15;letter-spacing:-.015em;color:var(--navy)}
+.enviado p{margin-top:12px;font-size:16px;line-height:1.6;color:var(--texto-md);max-width:58ch;text-wrap:pretty}
+.enviado .acoes{display:flex;flex-wrap:wrap;gap:12px;margin-top:26px}
+.protocolo{
+  margin-top:26px;background:var(--areia-esc);border:1px solid #EDE7DA;border-radius:14px;padding:18px;
+  font:400 13px/1.7 ui-monospace,SFMono-Regular,Menlo,monospace;color:#3C4A62;white-space:pre-wrap;overflow-x:auto;
+}
+
+/* ===== Rodapé ===== */
+footer{margin-top:clamp(48px,7vw,88px);background:var(--navy-esc);color:rgba(255,255,255,.7)}
+.pe{display:grid;gap:28px;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));align-items:start;padding-block:clamp(34px,5vw,56px)}
+.pe .marca{background:#fff;border-radius:16px;padding:18px 22px;display:inline-flex;justify-self:start}
+.pe .marca img{width:clamp(150px,20vw,196px);height:auto}
+.pe .rot{font-weight:600;font-size:12px;line-height:1;letter-spacing:.16em;text-transform:uppercase;color:rgba(255,255,255,.45);margin-bottom:10px}
+.pe p{font-size:15px;line-height:1.7}
+.pe .fino{font-size:14px;line-height:1.6;color:rgba(255,255,255,.6);max-width:34ch;text-wrap:pretty}
+.pe a{color:var(--amarelo)}
+.pe .entrar{color:rgba(255,255,255,.5);text-decoration:underline;font-size:13.5px;background:none;padding:0}
+.pe .entrar:hover{color:#fff}

@@ -1,0 +1,12 @@
+# Netlify — roteamento do site
+#
+# Ordem importa: a primeira regra que casar vence. As rotas do painel apontam
+# para painel.html; todo o resto cai na página pública (index.html).
+# Arquivos que existem de verdade (css, js, png) são servidos antes das regras.
+
+/login          /painel.html   200
+/novo           /painel.html   200
+/cadastros      /painel.html   200
+/cadastros/*    /painel.html   200
+
+/*              /index.html    200
