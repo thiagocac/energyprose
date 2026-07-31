@@ -1,0 +1,114 @@
+# ============================================================================
+# EnergyPRO — publicação no Netlify
+#
+# Um site, duas aplicações:
+#   /            formulário público (estático, em publico/) — INTOCADO
+#   /painel/*    EnergyPRO Gestão (React, buildado do src/)
+#
+# O build monta dist/ com as duas coisas: o app vai para dist/painel/ e o site
+# público é copiado por cima, na raiz. Só dist/ é publicado — o código-fonte
+# nunca fica acessível pela web (era o que aconteceria publicando a raiz do repo).
+# ============================================================================
+
+[build]
+  command = "npm run build"
+  publish = "dist"
+
+[build.environment]
+  NODE_VERSION = "22"
+
+# ---------------------------------------------------------------------------
+# Rotas. A PRIMEIRA regra que casa vence — rota nova entra ANTES do /* final.
+# ---------------------------------------------------------------------------
+
+# Painel novo (React, SPA)
+[[redirects]]
+  from = "/login"
+  to = "/painel/index.html"
+  status = 200
+[[redirects]]
+  from = "/crm"
+  to = "/painel/index.html"
+  status = 200
+[[redirects]]
+  from = "/propostas"
+  to = "/painel/index.html"
+  status = 200
+[[redirects]]
+  from = "/propostas/*"
+  to = "/painel/index.html"
+  status = 200
+[[redirects]]
+  from = "/contratos"
+  to = "/painel/index.html"
+  status = 200
+[[redirects]]
+  from = "/contratos/*"
+  to = "/painel/index.html"
+  status = 200
+[[redirects]]
+  from = "/catalogo"
+  to = "/painel/index.html"
+  status = 200
+[[redirects]]
+  from = "/configuracoes"
+  to = "/painel/index.html"
+  status = 200
+[[redirects]]
+  from = "/painel/*"
+  to = "/painel/index.html"
+  status = 200
+
+# Aceite público da proposta pelo cliente (sem login)
+[[redirects]]
+  from = "/p/*"
+  to = "/painel/index.html"
+  status = 200
+
+# Painel legado (estático). Sai do ar quando as telas de Cadastros forem
+# portadas para o React; até lá as duas convivem e compartilham a mesma sessão.
+[[redirects]]
+  from = "/novo"
+  to = "/painel-legado.html"
+  status = 200
+[[redirects]]
+  from = "/cadastros"
+  to = "/painel-legado.html"
+  status = 200
+[[redirects]]
+  from = "/cadastros/*"
+  to = "/painel-legado.html"
+  status = 200
+
+# Tudo o mais é o formulário público
+[[redirects]]
+  from = "/*"
+  to = "/index.html"
+  status = 200
+
+# ---------------------------------------------------------------------------
+# Cabeçalhos
+# ---------------------------------------------------------------------------
+[[headers]]
+  for = "/*"
+  [headers.values]
+    X-Frame-Options = "SAMEORIGIN"
+    X-Content-Type-Options = "nosniff"
+    Referrer-Policy = "strict-origin-when-cross-origin"
+    Permissions-Policy = "geolocation=(), microphone=(), camera=()"
+
+# Assets do Vite têm hash no nome: podem ser cacheados para sempre.
+[[headers]]
+  for = "/painel/assets/*"
+  [headers.values]
+    Cache-Control = "public, max-age=31536000, immutable"
+
+# O HTML nunca é cacheado, senão um deploy novo não chega ao usuário.
+[[headers]]
+  for = "/index.html"
+  [headers.values]
+    Cache-Control = "public, max-age=0, must-revalidate"
+[[headers]]
+  for = "/painel/index.html"
+  [headers.values]
+    Cache-Control = "public, max-age=0, must-revalidate"
