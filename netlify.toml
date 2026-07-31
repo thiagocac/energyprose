@@ -60,6 +60,19 @@
   status = 200
 
 # Aceite público da proposta pelo cliente (sem login)
+# Download do PDF pelo link do cliente. Vem ANTES da regra do /p/* porque a
+# primeira que casa vence — se ficasse depois, cairia no app React e o cliente
+# veria a tela de aceite em vez do arquivo.
+#
+# É proxy (status 200), não redirecionamento: o cliente nunca vê o domínio do
+# Supabase, e o link que ele guardou continua sendo o da Energy PRO. `force`
+# garante que a regra vale mesmo que exista arquivo estático com esse caminho.
+[[redirects]]
+  from = "/p/:token/pdf"
+  to = "https://mgcgmdiymqpxcsxhelhs.supabase.co/functions/v1/proposta-publica-pdf?t=:token"
+  status = 200
+  force = true
+
 [[redirects]]
   from = "/p/*"
   to = "/painel/index.html"

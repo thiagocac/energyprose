@@ -217,6 +217,13 @@ function cardSistema(page, ctx, F) {
   });
 }
 
+// Tetos das grades. A área de cada card é fixa no layout de uma página; passar
+// disso não "aperta", sobrepõe. Os números vêm da altura útil dividida pela
+// altura mínima legível de cada linha.
+const MAX_BENEFICIOS = 6;
+const MAX_INCLUSOS = 20;   // 4 fileiras de 5
+const MAX_CONDICOES = 5;
+
 // ============================================================================
 // 5 — Card "Benefícios" (texto fixo, configurável)
 // ============================================================================
@@ -229,7 +236,11 @@ function cardBeneficios(page, ctx, F) {
   icon(page, 'star', { x: x + 4, y: y + 2.3, size: 4.8, color: D.banda, peso: 1.9 });
   text(page, 'BENEFÍCIOS', { x: x + 11, y: y + 3.2, size: 7.6, font: F.pop7, color: D.banda, tracking: 0.6 });
 
-  const itens = ctx.empresa.beneficios;
+  // `?? []` e o teto: a lista vem de config_empresa, editável em tela. Nula,
+  // derrubava a geração inteira; longa demais, os cartões se sobrepunham e a
+  // proposta saía ilegível. Melhor cortar com aviso do que imprimir borrão.
+  const itens = (ctx.empresa.beneficios ?? []).slice(0, MAX_BENEFICIOS);
+  if (!itens.length) return;
   const rowH = (h - hd) / itens.length;
   itens.forEach((b, i) => {
     const ry = y + hd + i * rowH;
@@ -261,7 +272,8 @@ function cardInclusos(page, ctx, F) {
   icon(page, 'checkCircle', { x: x + 4, y: y + 2.3, size: 4.8, color: D.amber, peso: 1.9 });
   text(page, 'O QUE ESTÁ INCLUSO', { x: x + 11, y: y + 3.2, size: 7.6, font: F.pop7, color: D.branco, tracking: 0.6 });
 
-  const itens = ctx.empresa.itens_inclusos;
+  const itens = (ctx.empresa.itens_inclusos ?? []).slice(0, MAX_INCLUSOS);
+  if (!itens.length) return;
   const COLS = 5, ROWS = Math.ceil(itens.length / COLS);
   const gx = x + 2.5, gw = w - 5, gy = y + hd + 1.5, gh = h - hd - 3.5;
   const cw = gw / COLS, ch = gh / ROWS;
@@ -297,7 +309,8 @@ function cardInvestimento(page, ctx, F) {
 
   // Condições
   const cy0 = vy + 23.5;
-  const cond = ctx.empresa.condicoes_pagamento;
+  const cond = (ctx.empresa.condicoes_pagamento ?? []).slice(0, MAX_CONDICOES);
+  if (!cond.length) return;
   const rowH = (y + h - 3 - cy0) / cond.length;
   cond.forEach((c, i) => {
     const cy = cy0 + i * rowH;

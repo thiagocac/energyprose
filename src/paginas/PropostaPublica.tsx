@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { useParams } from 'react-router-dom';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { rpc } from '../lib/supabase';
-import { moeda, numero } from '../lib/formato';
+import { moeda, numero, dataBr } from '../lib/formato';
 
 // Página que o CLIENTE abre pelo link do WhatsApp. Sem login: a autorização é o
 // token, validado dentro da RPC (o role anon não enxerga nenhuma tabela).
@@ -74,7 +74,20 @@ export function PropostaPublica() {
             {d.cliente_nome}{d.cidade ? ` · ${d.cidade}` : ''}
           </div>
           <div className="preco" style={{ marginTop: 8 }}>{moeda(d.valor_total)}</div>
-          {d.validade ? <div style={{ fontSize: 12.5, color: 'var(--suave)' }}>Válida até {d.validade}</div> : null}
+          {d.validade ? <div style={{ fontSize: 12.5, color: 'var(--suave)' }}>Válida até {dataBr(d.validade)}</div> : null}
+
+          {/* Link comum, não fetch: o navegador cuida do download e o celular
+              abre o PDF no visualizador nativo. O caminho é do próprio domínio
+              da Energy PRO — o Netlify encaminha para a função que valida o
+              token e busca o arquivo no bucket privado. */}
+          <a className="botao secundario baixar-pdf"
+             href={`/p/${token}/pdf`} target="_blank" rel="noopener">
+            <svg viewBox="0 0 24 24" aria-hidden="true" width="15" height="15">
+              <path d="M12 3v12m0 0l-4.5-4.5M12 15l4.5-4.5M4 20h16" fill="none"
+                    stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+            </svg>
+            Baixar proposta em PDF
+          </a>
         </div>
 
         {s ? (

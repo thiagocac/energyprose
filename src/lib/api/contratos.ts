@@ -42,7 +42,12 @@ const SELECAO = `
   prazo_entrega_min_dias, prazo_entrega_max_dias, recorrencia, visitas_incluidas,
   vigencia_inicio, vigencia_fim, signed_at, pdf_path, cadastro_id, proposta_id,
   cadastros ( nome, cidade ),
-  propostas ( numero )`;
+  propostas!contratos_proposta_id_fkey ( numero )`;
+// ARMADILHA: existem DUAS chaves estrangeiras entre `contratos` e `propostas`
+// — `contratos.proposta_id` (de onde o contrato veio) e `propostas.contrato_id`
+// (para onde a proposta foi). Sem dizer qual, o PostgREST recusa a consulta
+// inteira com "more than one relationship was found" e a tela fica em branco.
+// O nome da FK é a desambiguação.
 
 export async function listarContratos(): Promise<ContratoLinha[]> {
   const { data, error } = await sb.from('contratos').select(SELECAO)

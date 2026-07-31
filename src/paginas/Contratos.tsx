@@ -3,7 +3,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Cabecalho } from '../componentes/Layout';
 import { BarraFiltro, casa } from '../componentes/Filtros';
 import { useAuth } from '../lib/auth';
-import { moeda, dataBr } from '../lib/formato';
+import { moeda, dataBr, hojeISO, dataFutura } from '../lib/formato';
 import { gerarDocumentoPdf, abrirAbaDiferida } from '../lib/api/documentos';
 import {
   listarContratos, salvarContrato, arquivarContrato, lacunasDoContrato,
@@ -23,13 +23,31 @@ type Form = {
   numero: string | null;
 };
 
-const hoje = () => new Date().toISOString().slice(0, 10);
-const emMeses = (m: number) => {
-  const d = new Date();
-  d.setMonth(d.getMonth() + m);
-  return d.toISOString().slice(0, 10);
+// `toISOString()` é UTC: depois das 21h em Brasília ele já devolve o dia
+// seguinte, e a vigência nascia começando amanhã. Estes ajudantes trabalham no
+// fuso de quem está usando.
+const hoje = hojeISO;
+const emMeses = (m: number) => dataFutura({ meses: m });
+/**
+ * Texto do campo de valor -> número.
+ *
+ * ARMADILHA JÁ PAGA: a versão antiga removia TODOS os pontos, o que está certo
+ * para o separador de milhar que o usuário digita ("1.234,56") e catastrófico
+ * para o valor que vem do banco ("1234.56" -> 123456). Reeditar um contrato
+ * para corrigir uma palavra multiplicava o valor por cem, sem erro nem aviso.
+ *
+ * Agora o ponto só é tratado como milhar quando está na posição de milhar
+ * (seguido de exatamente três dígitos e nada mais que dígito ou vírgula).
+ */
+const dec = (v: unknown) => {
+  if (typeof v === 'number') return Number.isFinite(v) ? v : 0;
+  const t = String(v ?? '').trim();
+  if (!t) return 0;
+  const normalizado = t.includes(',')
+    ? t.replace(/\./g, '').replace(',', '.')   // pt-BR: ponto é milhar
+    : t;                                       // sem vírgula: ponto é decimal
+  return Number(normalizado) || 0;
 };
-const dec = (v: string) => Number(String(v).replace(/\./g, '').replace(',', '.')) || 0;
 
 const vazio = (): Form => ({
   cadastro_id: '', proposta_id: null, tipo: 'manutencao', descricao: '',

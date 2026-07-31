@@ -114,8 +114,85 @@ export function fimRecorte(page) { page.pushOperators(popGraphicsState()); }
 // y sempre é o TOPO da linha (o pdf-lib desenha pela baseline; convertemos aqui).
 const BASE = 0.76;
 
+/**
+ * As fontes embutidas são SUBCONJUNTOS: cobrem o alfabeto latino do português e
+ * pouco mais. Caractere fora disso não desenha nada — vira retângulo vazio ou
+ * some, e o cliente recebe "JOSÉ NU▯EZ" ou "250 m▯".
+ *
+ * Isso é dado de cliente, não texto nosso: sobrenome com ñ e "mm²" em proposta
+ * de engenharia são rotina. Em vez de exigir que cada layout se lembre, o
+ * conserto fica no único lugar por onde todo texto passa — `text()` e `wrap()`.
+ *
+ * A tabela transliteral o que tem equivalente óbvio; o que sobrar vira "?",
+ * que é visível e denuncia o problema, em vez de sumir calado.
+ */
+/*
+ * A tabela é escrita por PONTO DE CÓDIGO, não com sequências `\u`, e o motivo
+ * é o deploy: o bundle da Edge Function é transcrito, e escape unicode não
+ * atravessa esse caminho intacto (ver LEIA-ME da função). Número decimal
+ * atravessa, e ainda diz exatamente qual caractere é.
+ */
+const TROCAS = new Map([
+  [0x2212, '-'], [0x2013, '-'], [0x2012, '-'], [0x2015, '-'],   // menos e travessões
+  [0x00B2, '2'], [0x00B3, '3'], [0x00B9, '1'],                  // expoentes: m2, mm2
+  [0x00BC, '1/4'], [0x00BD, '1/2'], [0x00BE, '3/4'],
+  [0x2264, '<='], [0x2265, '>='], [0x2260, '!='], [0x2248, '~'], [0x00B1, '+/-'],
+  [0x00D7, 'x'], [0x00F7, '/'], [0x2192, '->'], [0x2190, '<-'], [0x2022, '-'],
+  [0x2018, "'"], [0x2019, "'"], [0x201A, "'"], [0x2032, "'"], [0x2033, '"'],
+  [0x00AB, '"'], [0x00BB, '"'], [0x2044, '/'], [0x2116, 'No.'], [0x2122, 'TM'],
+  [0x00D1, 'N'], [0x00F1, 'n'], [0x0160, 'S'], [0x0161, 's'],   // ñ de sobrenome
+  [0x017D, 'Z'], [0x017E, 'z'], [0x0178, 'Y'], [0x00FF, 'y'],
+  [0x0152, 'OE'], [0x0153, 'oe'], [0x00C6, 'AE'], [0x00E6, 'ae'],
+  [0x00D0, 'D'], [0x00F0, 'd'], [0x00DE, 'Th'], [0x00FE, 'th'], [0x00DF, 'ss'],
+].map(([cp, txt]) => [String.fromCodePoint(cp), txt]));
+
+/** Marcas de combinação (acentos soltos) que sobram após o NFD. */
+const MARCAS = new RegExp('[' + String.fromCodePoint(0x0300) + '-'
+  + String.fromCodePoint(0x036F) + ']', 'g');
+
+/** Espaço exótico (inquebrável, fino, de figura) vira espaço comum. */
+const ESPACOS = new RegExp(
+  '[' + [0x00A0, 0x2007, 0x2008, 0x2009, 0x200A, 0x200B, 0x202F, 0x205F, 0x3000, 0xFEFF]
+    .map((cp) => String.fromCodePoint(cp)).join('') + ']', 'g');
+
+export function sanitizar(str, font) {
+  let s = String(str ?? '').replace(ESPACOS, ' ');
+  let saida = '';
+  for (const ch of s) {
+    if (ch.codePointAt(0) < 128) { saida += ch; continue; }
+    const troca = TROCAS.get(ch);
+    if (troca !== undefined) { saida += troca; continue; }
+    // Acentos do português estão no subconjunto; o resto é decomposto e, se
+    // ainda assim não couber, marcado com "?".
+    if (font && temGlifo(font, ch)) { saida += ch; continue; }
+    const semAcento = ch.normalize('NFD').replace(MARCAS, '');
+    saida += semAcento && semAcento !== ch ? sanitizar(semAcento, font) : '?';
+  }
+  return saida;
+}
+
+/**
+ * pdf-lib não expõe a lista de glifos, mas um caractere ausente devolve a
+ * largura do `.notdef`. Comparamos com um caractere que sabemos faltar.
+ * O resultado é memorizado por fonte — medir custa caro no laço de desenho.
+ */
+const CACHE_GLIFO = new WeakMap();
+const AUSENTE = String.fromCodePoint(0xE000);   // uso privado: nenhuma fonte real define
+function temGlifo(font, ch) {
+  let mapa = CACHE_GLIFO.get(font);
+  if (!mapa) { mapa = new Map(); CACHE_GLIFO.set(font, mapa); }
+  if (mapa.has(ch)) return mapa.get(ch);
+  let ok = true;
+  try {
+    if (!mapa.has('__notdef')) mapa.set('__notdef', font.widthOfTextAtSize(AUSENTE, 100));
+    ok = font.widthOfTextAtSize(ch, 100) !== mapa.get('__notdef');
+  } catch { ok = false; }
+  mapa.set(ch, ok);
+  return ok;
+}
+
 export function textW(font, str, sizePt) {
-  return font.widthOfTextAtSize(String(str ?? ''), sizePt) / MM;   // devolve em mm
+  return font.widthOfTextAtSize(sanitizar(str, font), sizePt) / MM;   // devolve em mm
 }
 
 /**
@@ -123,7 +200,7 @@ export function textW(font, str, sizePt) {
  * `tracking` em pt por caractere (para os rótulos em caixa alta espaçada).
  */
 export function text(page, str, { x, y, w: boxW, size = 9, font, color = COR.ink, align = 'left', tracking = 0 }) {
-  const s = String(str ?? '');
+  const s = sanitizar(str, font);
   if (!s) return;
   const natural = font.widthOfTextAtSize(s, size) + tracking * Math.max(0, s.length - 1);
   const naturalMm = natural / MM;
@@ -145,7 +222,7 @@ export function text(page, str, { x, y, w: boxW, size = 9, font, color = COR.ink
 
 /** Quebra texto em linhas que cabem em `maxMm`. */
 export function wrap(font, str, size, maxMm) {
-  const words = String(str ?? '').split(/\s+/).filter(Boolean);
+  const words = sanitizar(str, font).split(/\s+/).filter(Boolean);
   const lines = [];
   let cur = '';
   for (const word of words) {

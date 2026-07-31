@@ -3,7 +3,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Cabecalho } from '../componentes/Layout';
 import { BarraFiltro, casa } from '../componentes/Filtros';
 import { useAuth } from '../lib/auth';
-import { moeda, numero, dataBr, linkWhatsapp, soDigitos } from '../lib/formato';
+import { moeda, numero, dataBr, dataFutura, linkWhatsapp, soDigitos } from '../lib/formato';
 import { kwp, geracaoMensal, sugerirModulos, razaoCcCa } from '../lib/solar';
 import { gerarDocumentoPdf, abrirAbaDiferida } from '../lib/api/documentos';
 import {
@@ -38,7 +38,7 @@ const vazio = (): Form => ({
   kwpManual: false, geracaoManual: false,
 });
 
-const emDias = (d: number) => new Date(Date.now() + d * 86_400_000).toISOString().slice(0, 10);
+const emDias = (d: number) => dataFutura({ dias: d });
 const dec = (v: string) => Number(String(v).replace(',', '.')) || 0;
 
 export function Propostas() {
@@ -205,7 +205,7 @@ export function Propostas() {
           inversor_id: form.inversor_id || null,
           inversor_descricao: inv ? descreverEquipamento(inv) : null,
           potencia_instalada_kwp: dec(form.potencia_kwp) || null,
-          geracao_media_kwh_mes: Number(form.geracao) || null,
+          geracao_media_kwh_mes: dec(form.geracao) || null,
           hsp: dec(form.hsp) || null, pr: dec(form.pr) || null,
           garantia_modulos_anos: m?.garantia_produto_anos ?? null,
           garantia_inversor_anos: inv?.garantia_produto_anos ?? null,
@@ -240,12 +240,29 @@ export function Propostas() {
       const fone = dados.recipient_whatsapp || '';
       if (!fone) throw new Error('Sem WhatsApp do cliente. Edite a proposta e informe o número.');
       const r = await prepararEnvio(p.id, dados.recipient_email, dados.recipient_name, fone);
-      const link = `${window.location.origin}/p/${r.token}`;
+
+      // O PDF é gerado DEPOIS de preparar o envio, que é quando a revisão fica
+      // congelada — assim o arquivo corresponde exatamente ao que o cliente vê
+      // no link. E é gerado agora, e não sob demanda, porque o link de download
+      // só funciona com o arquivo já arquivado no bucket.
+      let temPdf = true;
+      try {
+        await gerarDocumentoPdf('proposta', p.id);
+      } catch {
+        // Falha ao gerar não pode impedir o envio: a proposta já está enviada e
+        // o cliente precisa do link de aceite. O de download fica de fora.
+        temPdf = false;
+      }
+
+      const base = `${window.location.origin}/p/${r.token}`;
       const msg = `Olá, ${dados.recipient_name ?? ''}! Segue a sua proposta da Energy PRO `
         + `(${p.numero}), no valor de ${moeda(p.valor_total)}.\n\n`
-        + `Você pode ver os detalhes e responder por aqui: ${link}`;
+        + `Ver os detalhes e responder: ${base}`
+        + (temPdf ? `\n\nBaixar a proposta em PDF: ${base}/pdf` : '');
       window.open(linkWhatsapp(fone, msg), '_blank');
-      setAviso('Proposta marcada como enviada e o WhatsApp foi aberto com o link.');
+      setAviso(temPdf
+        ? 'Proposta enviada: o WhatsApp abriu com o link de aceite e o de download do PDF.'
+        : 'Proposta enviada, mas o PDF não pôde ser gerado — a mensagem foi sem o link de download.');
       void qc.invalidateQueries({ queryKey: ['propostas'] });
     } catch (e) { setErro((e as Error).message); } finally { setOcupado(null); }
   }

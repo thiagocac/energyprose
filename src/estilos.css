@@ -256,3 +256,28 @@ fieldset[disabled] input, fieldset[disabled] select, fieldset[disabled] textarea
 .barra-filtro .contagem {
   font-size: 12.5px; color: var(--suave); margin-left: auto; white-space: nowrap;
 }
+
+/* ===== Arrastar e soltar no funil ======================================== */
+/* O cursor só vira "pegável" para quem pode mover — leitor não deve receber a
+   promessa de um gesto que a RPC vai recusar. */
+.funil .card.pegavel { cursor: grab; }
+.funil .card.pegavel:active { cursor: grabbing; }
+.funil .card.arrastando { opacity: .45; }
+/* O select de etapa continua existindo: teclado, leitor de tela e telefone não
+   arrastam bem. O arraste é atalho, não o único caminho. */
+.funil .card.pegavel select,
+.funil .card.pegavel button,
+.funil .card.pegavel a { cursor: default; }
+.funil .cards.recebendo {
+  background: #FFFBEB;
+  outline: 2px dashed var(--quente-medio);
+  outline-offset: -3px;
+  border-radius: 10px;
+}
+.funil .cards.recebendo .vazio { color: var(--quente-fim); font-weight: 600; }
+
+/* Botão de baixar o PDF na página pública de aceite. */
+.baixar-pdf {
+  display: inline-flex; align-items: center; gap: 7px;
+  margin-top: 14px; text-decoration: none;
+}

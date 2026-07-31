@@ -89,6 +89,9 @@ export async function obterProposta(id: string): Promise<PropostaCompleta> {
   ]);
   if (cab.error) throw new Error(cab.error.message);
   if (itens.error) throw new Error(itens.error.message);
+  // O erro do bloco do sistema era ignorado: a proposta abria sem sistema e era
+  // salva assim, apagando o que estava gravado.
+  if (sis.error) throw new Error(sis.error.message);
   const p = cab.data as Record<string, unknown>;
   return {
     id: String(p.id), numero: (p.numero as string) ?? null, revision: Number(p.revision) || 0,
@@ -135,8 +138,13 @@ export const converterEmContrato = (id: string) =>
 
 /** Rascunho vai para a lixeira lógica; o resto tem trilha e não se apaga. */
 export async function arquivarProposta(id: string) {
-  const { error } = await sb.from('propostas')
+  // `.select()` é essencial: UPDATE barrado pelo RLS não devolve erro, só afeta
+  // zero linhas — a tela dizia "Rascunho arquivado" sem ter arquivado nada.
+  const { data, error } = await sb.from('propostas')
     .update({ deleted_at: new Date().toISOString() })
-    .eq('id', id).eq('status', 'rascunho');
+    .eq('id', id).eq('status', 'rascunho').select('id');
   if (error) throw new Error(error.message);
+  if (!data?.length) {
+    throw new Error('Nada foi arquivado: só rascunho pode ser arquivado, e só por quem tem permissão.');
+  }
 }
