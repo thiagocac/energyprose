@@ -109,6 +109,8 @@ público; `08`–`15` acrescentaram o módulo comercial:
 | `25_restaura_crm_snapshot` | restaura a função da 10 com o filtro de etapa arquivada nos KPIs (a 24 a havia reescrito errado) |
 | `26_pdf_publico_por_token` | `proposta_publica_pdf`: quinta porta pública, devolve o caminho do PDF de uma proposta |
 | `27_fecha_net_e_sal_do_ip` | tira `sal_ip`, `ip_hash` e `limpar_envios_publicos` do alcance do `anon` |
+| `28_abertura_do_link_e_followup` | abertura do link vira estado na proposta; `dias_followup` vira configuração |
+| `29_corrige_followup_do_lead` | correção da 28: `crm_leads` não tem `next_action_note` |
 
 ### Edge Functions
 
@@ -252,6 +254,31 @@ A regra prática, então, é uma só: **nunca acrescente `net` (nem `seguranca`)
 lista de "Exposed schemas"** em Settings → API. Se um dia isso acontecer,
 `net._http_response` — que guarda corpo e cabeçalhos, `Authorization` incluído —
 vira leitura pública, e `net.http_post` vira SSRF.
+
+## Depois do envio
+
+O ciclo comercial era cego a partir do momento em que a proposta saía. O banco
+já sabia duas coisas que nenhuma tela mostrava — a página pública registrava um
+evento a cada carregamento, e o envio já gravava `followup_at`. Agora as duas
+viram informação:
+
+| Coluna | O que significa |
+|---|---|
+| `propostas.public_first_view_at` | quando o cliente abriu o link pela primeira vez; nulo = não abriu |
+| `propostas.public_last_view_at` | última abertura |
+| `propostas.public_views` | quantas vezes abriu — reabrir muito é sinal de interesse, ou de dúvida |
+| `propostas.followup_at` | quando cobrar retorno; sai de `config_empresa.dias_followup` |
+
+A abertura é gravada como **estado**, e a trilha recebe no máximo um evento
+`viewed` por dia. Antes era um evento por carregamento: cliente que atualizasse
+a página cinco vezes gerava cinco linhas, e ninguém lia nenhuma.
+
+**Reenviar zera a leitura.** O que interessa é se o cliente viu ESTA versão —
+uma proposta revisada e reenviada começa do zero.
+
+O envio também escreve `next_action_at` no lead, que é o que alimenta o KPI
+"Ações vencidas" da tela do funil. Dois mecanismos que já existiam e não se
+conheciam.
 
 ## Rotinas automáticas
 

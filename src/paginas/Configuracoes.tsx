@@ -5,7 +5,7 @@ import { useAuth } from '../lib/auth';
 import { fone } from '../lib/formato';
 import {
   obterConfiguracao, salvarConfiguracao, ICONES,
-  type Configuracao as Cfg,
+  type Configuracao as Cfg, lacunasDaEmpresa,
 } from '../lib/api/configuracao';
 
 export function Configuracoes() {
@@ -54,6 +54,15 @@ export function Configuracoes() {
       {erro ? <div className="aviso erro" style={{ marginBottom: 14 }}>{erro}</div> : null}
       {aviso ? <div className="aviso bom" style={{ marginBottom: 14 }}>{aviso}</div> : null}
 
+      {/* O contrato imprime "—" no lugar de cada campo em branco. Melhor
+          descobrir aqui do que na hora de mandar o cliente assinar. */}
+      {lacunasDaEmpresa(c).length ? (
+        <div className="aviso erro" style={{ marginBottom: 14 }}>
+          O contrato sai com “—” no lugar de: <b>{lacunasDaEmpresa(c).join(', ')}</b>.
+          Preencha antes de emitir o primeiro contrato de verdade.
+        </div>
+      ) : null}
+
       <fieldset disabled={!admin} style={{ border: 0, padding: 0, margin: 0, minInlineSize: 0 }}>
         <Secao titulo="Empresa" nota="Aparece no rodapé da proposta e no contrato.">
           <div className="grade2">
@@ -83,6 +92,9 @@ export function Configuracoes() {
                nota="HSP e PR são o que transforma potência em geração estimada. Ficam gravados em cada proposta, então mudar aqui não altera propostas já feitas.">
           <div className="grade2">
             <Num rot="Validade da proposta (dias)" val={c.validade_proposta_dias} on={(v) => set('validade_proposta_dias', v)} />
+            <Num rot="Cobrar retorno após (dias)" val={c.dias_followup}
+                 dica="Depois desse prazo sem resposta, a proposta aparece marcada como “cobrar” e vira tarefa no funil."
+                 on={(v) => set('dias_followup', v)} />
             <Num rot="Garantia da instalação (meses)" val={c.garantia_instalacao_meses} on={(v) => set('garantia_instalacao_meses', v)} />
             <Num rot="Entrega — mínimo (dias)" val={c.prazo_entrega_min_dias} on={(v) => set('prazo_entrega_min_dias', v)} />
             <Num rot="Entrega — máximo (dias)" val={c.prazo_entrega_max_dias} on={(v) => set('prazo_entrega_max_dias', v)} />

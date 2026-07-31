@@ -281,3 +281,13 @@ fieldset[disabled] input, fieldset[disabled] select, fieldset[disabled] textarea
   display: inline-flex; align-items: center; gap: 7px;
   margin-top: 14px; text-decoration: none;
 }
+
+/* Filtro de marcação na barra das listas. */
+.barra-filtro .filtro-marca {
+  display: inline-flex; align-items: center; gap: 6px;
+  padding: 9px 11px; border: 1px solid var(--linha); border-radius: 9px;
+  background: var(--branco); font-size: 13.5px; color: var(--tinta);
+  cursor: pointer; white-space: nowrap;
+}
+.barra-filtro .filtro-marca:hover { background: var(--fundo); }
+.barra-filtro .filtro-marca input { accent-color: var(--quente-medio); cursor: pointer; }

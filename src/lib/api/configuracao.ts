@@ -17,12 +17,31 @@ export type Beneficio = { icone: string; titulo: string; sub: string };
 export type ItemIncluso = { icone: string; texto: string };
 export type Condicao = { icone: string; titulo: string; detalhe: string };
 
+/**
+ * Campos que o CONTRATO imprime e que, em branco, saem como "—" num documento
+ * que vai a cartório. A tela avisa em vez de deixar descobrir na assinatura.
+ */
+export const OBRIGATORIOS_NO_CONTRATO: Array<[keyof Configuracao, string]> = [
+  ['razao_social', 'razão social'],
+  ['cnpj', 'CNPJ'],
+  ['endereco', 'endereço'],
+  ['engenheiro_nome', 'responsável técnico'],
+  ['engenheiro_crea', 'CREA'],
+];
+
+export function lacunasDaEmpresa(c: Configuracao): string[] {
+  return OBRIGATORIOS_NO_CONTRATO
+    .filter(([campo]) => !String(c[campo] ?? '').trim())
+    .map(([, rotulo]) => rotulo);
+}
+
 export type Configuracao = {
   nome_exibicao: string; razao_social: string | null; cnpj: string | null;
   endereco: string | null; cidade: string | null; uf: string | null;
   whatsapp: string | null; instagram: string | null; email_comercial: string | null;
   engenheiro_nome: string | null; engenheiro_titulo: string | null; engenheiro_crea: string | null;
   validade_proposta_dias: number;
+  dias_followup: number;
   prazo_entrega_min_dias: number; prazo_entrega_max_dias: number;
   hsp_default: number; pr_default: number;
   economia_max_pct: number; garantia_instalacao_meses: number;
@@ -48,6 +67,9 @@ export async function salvarConfiguracao(c: Configuracao): Promise<void> {
   if (c.validade_proposta_dias < 1 || c.validade_proposta_dias > 180) {
     throw new Error('A validade da proposta precisa ficar entre 1 e 180 dias.');
   }
+  if (c.dias_followup < 1 || c.dias_followup > 60) {
+    throw new Error('O prazo de follow-up precisa ficar entre 1 e 60 dias.');
+  }
   if (c.prazo_entrega_min_dias > c.prazo_entrega_max_dias) {
     throw new Error('O prazo mínimo de entrega não pode ser maior que o máximo.');
   }
@@ -65,6 +87,7 @@ export async function salvarConfiguracao(c: Configuracao): Promise<void> {
     engenheiro_nome: c.engenheiro_nome, engenheiro_titulo: c.engenheiro_titulo,
     engenheiro_crea: c.engenheiro_crea,
     validade_proposta_dias: c.validade_proposta_dias,
+    dias_followup: c.dias_followup,
     prazo_entrega_min_dias: c.prazo_entrega_min_dias,
     prazo_entrega_max_dias: c.prazo_entrega_max_dias,
     hsp_default: c.hsp_default, pr_default: c.pr_default,

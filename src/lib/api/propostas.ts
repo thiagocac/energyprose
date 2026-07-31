@@ -15,6 +15,10 @@ export type PropostaLinha = {
   titulo: string | null; validade: string | null; status: StatusProposta;
   valor_total: number; cadastro_id: string | null; contrato_id: string | null;
   followup_at: string | null; sent_at: string | null; pdf_path: string | null;
+  /** Quando o cliente abriu o link pela primeira vez. Nulo = ainda não abriu. */
+  public_first_view_at: string | null;
+  public_last_view_at: string | null;
+  public_views: number;
   cliente: string | null; cidade: string | null;
   potencia_kwp: number | null; modulo_qtd: number | null;
 };
@@ -49,6 +53,7 @@ export type PropostaCompleta = {
 const SELECAO = `
   id, numero, revision, tipo, linha, titulo, validade, status, valor_total, cadastro_id,
   contrato_id, followup_at, sent_at, pdf_path,
+  public_first_view_at, public_last_view_at, public_views,
   cadastros ( nome, cidade ),
   proposta_sistema ( potencia_instalada_kwp, modulo_qtd )`;
 
@@ -72,6 +77,9 @@ export async function listarPropostas(): Promise<PropostaLinha[]> {
       followup_at: (linha.followup_at as string) ?? null,
       sent_at: (linha.sent_at as string) ?? null,
       pdf_path: (linha.pdf_path as string) ?? null,
+      public_first_view_at: (linha.public_first_view_at as string) ?? null,
+      public_last_view_at: (linha.public_last_view_at as string) ?? null,
+      public_views: Number(linha.public_views) || 0,
       cliente: cad?.nome ?? null, cidade: cad?.cidade ?? null,
       potencia_kwp: sis?.potencia_instalada_kwp ?? null,
       modulo_qtd: sis?.modulo_qtd ?? null,
@@ -137,6 +145,56 @@ export const converterEmContrato = (id: string) =>
   rpc<{ contrato_id: string; idempotente: boolean }>('converter_proposta_em_contrato', { p_id: id });
 
 /** Rascunho vai para a lixeira lógica; o resto tem trilha e não se apaga. */
+/**
+ * Estado de acompanhamento de uma proposta enviada.
+ *
+ * O sistema sabia tudo isto e não mostrava nada: se o cliente abriu o link,
+ * quantas vezes, e há quantos dias está sem resposta. Quem vende descobria
+ * pelo silêncio.
+ */
+export type Acompanhamento = {
+  situacao: 'nao_enviada' | 'sem_abrir' | 'aberta' | 'respondida';
+  rotulo: string;
+  detalhe: string;
+  cobrar: boolean;
+  diasSemResposta: number;
+};
+
+const DIA = 86_400_000;
+const emDias = (iso: string | null) =>
+  (iso ? Math.floor((Date.now() - new Date(iso).getTime()) / DIA) : 0);
+const haQuanto = (d: number) => (d <= 0 ? 'hoje' : d === 1 ? 'ontem' : `há ${d} dias`);
+
+export function acompanhar(p: PropostaLinha): Acompanhamento {
+  if (['aceita', 'recusada'].includes(p.status)) {
+    return { situacao: 'respondida', rotulo: 'Respondida', detalhe: '', cobrar: false, diasSemResposta: 0 };
+  }
+  if (p.status !== 'enviada' || !p.sent_at) {
+    return { situacao: 'nao_enviada', rotulo: '', detalhe: '', cobrar: false, diasSemResposta: 0 };
+  }
+  const dias = emDias(p.sent_at);
+  // Vencer o follow-up é o gatilho de cobrança. Abrir e não responder também
+  // conta, porque aí já se sabe que o cliente leu e escolheu não responder.
+  const cobrar = !!p.followup_at && new Date(p.followup_at) < new Date();
+  if (!p.public_first_view_at) {
+    return {
+      situacao: 'sem_abrir',
+      rotulo: 'Não abriu',
+      detalhe: `Enviada ${haQuanto(dias)}, link ainda não aberto`,
+      cobrar, diasSemResposta: dias,
+    };
+  }
+  const diasVisto = emDias(p.public_last_view_at ?? p.public_first_view_at);
+  return {
+    situacao: 'aberta',
+    rotulo: p.public_views > 1 ? `Viu ${p.public_views}×` : 'Abriu',
+    detalhe: `Abriu ${haQuanto(emDias(p.public_first_view_at))}`
+      + (p.public_views > 1 ? `, última vez ${haQuanto(diasVisto)}` : '')
+      + `, sem responder ${haQuanto(dias)}`,
+    cobrar, diasSemResposta: dias,
+  };
+}
+
 export async function arquivarProposta(id: string) {
   // `.select()` é essencial: UPDATE barrado pelo RLS não devolve erro, só afeta
   // zero linhas — a tela dizia "Rascunho arquivado" sem ter arquivado nada.

@@ -8,7 +8,7 @@ import { kwp, geracaoMensal, sugerirModulos, razaoCcCa } from '../lib/solar';
 import { gerarDocumentoPdf, abrirAbaDiferida } from '../lib/api/documentos';
 import {
   listarPropostas, obterProposta, salvarProposta, duplicarProposta,
-  prepararEnvio, converterEmContrato, arquivarProposta,
+  prepararEnvio, converterEmContrato, arquivarProposta, acompanhar,
   ROTULO_STATUS, type PropostaLinha, type ItemProposta, type StatusProposta,
 } from '../lib/api/propostas';
 import {
@@ -52,6 +52,7 @@ export function Propostas() {
   const [busca, setBusca] = useState('');
   const [fStatus, setFStatus] = useState('');
   const [fLinha, setFLinha] = useState('');
+  const [soCobrar, setSoCobrar] = useState(false);
 
   const propostas = useQuery({ queryKey: ['propostas'], queryFn: listarPropostas });
   const servicos = useQuery({ queryKey: ['servicos'], queryFn: () => listarServicos(true) });
@@ -98,9 +99,22 @@ export function Propostas() {
     return todas.filter((p) => (
       (!fStatus || p.status === fStatus)
       && (!fLinha || p.linha === fLinha)
+      && (!soCobrar || acompanhar(p).cobrar)
       && casa(busca, p.numero, p.cliente, p.cidade, p.titulo)
     ));
-  }, [propostas.data, busca, fStatus, fLinha]);
+  }, [propostas.data, busca, fStatus, fLinha, soCobrar]);
+
+  // O que o vendedor precisa saber ao abrir a tela, antes de olhar a lista.
+  const resumo = useMemo(() => {
+    const todas = propostas.data ?? [];
+    const enviadas = todas.filter((p) => p.status === 'enviada');
+    return {
+      aguardando: enviadas.length,
+      semAbrir: enviadas.filter((p) => !p.public_first_view_at).length,
+      abertas: enviadas.filter((p) => p.public_first_view_at).length,
+      cobrar: todas.filter((p) => acompanhar(p).cobrar).length,
+    };
+  }, [propostas.data]);
 
   // ===== Cálculo automático de kWp e geração =====
   // Só recalcula enquanto o usuário não digitou o valor à mão: o vendedor às
@@ -286,6 +300,15 @@ export function Propostas() {
       {erro ? <div className="aviso erro" style={{ marginBottom: 14 }}>{erro}</div> : null}
       {aviso ? <div className="aviso bom" style={{ marginBottom: 14 }}>{aviso}</div> : null}
 
+      {resumo.aguardando ? (
+        <div className="kpis">
+          <KpiP rot="Aguardando resposta" val={String(resumo.aguardando)} />
+          <KpiP rot="Cliente já abriu" val={String(resumo.abertas)} />
+          <KpiP rot="Link não aberto" val={String(resumo.semAbrir)} />
+          <KpiP rot="Cobrar retorno" val={String(resumo.cobrar)} alerta={resumo.cobrar > 0} />
+        </div>
+      ) : null}
+
       {propostas.isLoading ? <div className="carregando">Carregando…</div>
         : propostas.error ? <div className="aviso erro">{(propostas.error as Error).message}</div>
         : !propostas.data?.length ? (
@@ -300,8 +323,12 @@ export function Propostas() {
             busca={busca} aoBuscar={setBusca}
             placeholder="Buscar por número, cliente, cidade ou título"
             mostrando={listaFiltrada.length} total={propostas.data.length}
-            aoLimpar={() => { setBusca(''); setFStatus(''); setFLinha(''); }}
+            aoLimpar={() => { setBusca(''); setFStatus(''); setFLinha(''); setSoCobrar(false); }}
             filtros={<>
+              <label className="filtro-marca">
+                <input type="checkbox" checked={soCobrar} onChange={(e) => setSoCobrar(e.target.checked)} />
+                Só as que precisam de retorno
+              </label>
               <select value={fStatus} onChange={(e) => setFStatus(e.target.value)} aria-label="Filtrar por status">
                 <option value="">Todos os status</option>
                 {(Object.keys(ROTULO_STATUS) as StatusProposta[]).map((k) => (
@@ -324,7 +351,7 @@ export function Propostas() {
               <thead>
                 <tr>
                   <th>Número</th><th>Cliente</th><th>Linha</th><th>Sistema</th>
-                  <th className="dir">Valor</th><th>Status</th><th>Validade</th><th>Ações</th>
+                  <th className="dir">Valor</th><th>Status</th><th>Acompanhamento</th><th>Ações</th>
                 </tr>
               </thead>
               <tbody>
@@ -348,7 +375,7 @@ export function Propostas() {
                     </td>
                     <td className="dir"><b>{moeda(p.valor_total)}</b></td>
                     <td><Selo status={p.status} /></td>
-                    <td>{dataBr(p.validade)}</td>
+                    <td><Sinal p={p} /></td>
                     <td>
                       <div style={{ display: 'flex', gap: 5, flexWrap: 'wrap' }}>
                         {escrever && (p.status === 'rascunho' || p.status === 'enviada')
@@ -590,6 +617,33 @@ export function Propostas() {
           </aside>
         </div>
       ) : null}
+    </>
+  );
+}
+
+function KpiP({ rot, val, alerta }: { rot: string; val: string; alerta?: boolean }) {
+  return (
+    <div className="cartao kpi">
+      <div className="rot">{rot}</div>
+      <div className={`val${alerta ? ' alerta' : ''}`}>{val}</div>
+    </div>
+  );
+}
+
+/**
+ * Coluna que responde à pergunta que o vendedor faz sozinho toda manhã:
+ * "esse cliente já viu a proposta, e há quanto tempo estou sem resposta?"
+ */
+function Sinal({ p }: { p: PropostaLinha }) {
+  const a = acompanhar(p);
+  if (a.situacao === 'nao_enviada' || a.situacao === 'respondida') {
+    return <span className="meta">vence {dataBr(p.validade)}</span>;
+  }
+  return (
+    <>
+      <span className={`pilula${a.situacao === 'aberta' ? ' bom' : ''}`}>{a.rotulo}</span>
+      {a.cobrar ? <span className="pilula ruim" style={{ marginLeft: 4 }}>cobrar</span> : null}
+      <div className="meta">{a.detalhe}</div>
     </>
   );
 }
