@@ -3,7 +3,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Cabecalho } from '../componentes/Layout';
 import { BarraFiltro, casa } from '../componentes/Filtros';
 import { useAuth } from '../lib/auth';
-import { moeda, numero, dataBr, dataFutura, linkWhatsapp, soDigitos } from '../lib/formato';
+import { moeda, numero, dataBr, dataFutura, linkWhatsapp, soDigitos, paraNumero } from '../lib/formato';
 import { kwp, geracaoMensal, sugerirModulos, razaoCcCa } from '../lib/solar';
 import { gerarDocumentoPdf, abrirAbaDiferida } from '../lib/api/documentos';
 import {
@@ -39,7 +39,12 @@ const vazio = (): Form => ({
 });
 
 const emDias = (d: number) => dataFutura({ dias: d });
-const dec = (v: string) => Number(String(v).replace(',', '.')) || 0;
+/**
+ * ARMADILHA JÁ PAGA: a versão daqui só trocava vírgula por ponto, então a
+ * geração digitada à mão como "1.200" kWh/mês virava 1,2 — e ia assim para o
+ * PDF que o cliente lê. Agora é a mesma regra do resto do sistema.
+ */
+const dec = paraNumero;
 
 export function Propostas() {
   const { pode } = useAuth();

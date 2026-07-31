@@ -9,6 +9,38 @@
 
 export const soDigitos = (v: unknown) => String(v ?? '').replace(/\D/g, '');
 
+/**
+ * Texto digitado por gente -> número.
+ *
+ * Isto nasceu duas vezes, uma em cada tela, e as duas versões estavam erradas
+ * de jeitos diferentes:
+ *
+ *   Contratos  "12.000"      -> 12          (contrato de doze reais)
+ *   Propostas  "1.200"       -> 1,2         (geração de 1,2 kWh por mês)
+ *   Contratos  "R$ 1.200,00" -> 0           (e aí "informe o valor")
+ *
+ * Nenhum dos três dava erro. O número errado simplesmente seguia para o
+ * documento. Agora existe uma versão só, testada, e a regra é:
+ *
+ *   tem vírgula          -> pt-BR puro: ponto é milhar, vírgula é decimal
+ *   ponto + 3 dígitos    -> milhar ("12.000", "1.234.567")
+ *   qualquer outro ponto -> decimal ("1234.56", "5.2" — como o banco devolve)
+ *
+ * O caso ambíguo de verdade não existe na prática: ninguém escreve mil e
+ * duzentos como "1.2", e o banco nunca devolve "12.000" para dizer doze.
+ */
+export function paraNumero(v: unknown): number {
+  if (typeof v === 'number') return Number.isFinite(v) ? v : 0;
+  // `\s` do JavaScript já inclui o espaço estreito que o Intl põe depois do R$.
+  const t = String(v ?? '').replace(/[R$\s]/g, '');
+  if (!t) return 0;
+  let normalizado: string;
+  if (t.includes(',')) normalizado = t.replace(/\./g, '').replace(',', '.');
+  else if (/^-?\d{1,3}(\.\d{3})+$/.test(t)) normalizado = t.replace(/\./g, '');
+  else normalizado = t;
+  return Number(normalizado) || 0;
+}
+
 export const moeda = (n: unknown) =>
   (Number(n) || 0).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
 

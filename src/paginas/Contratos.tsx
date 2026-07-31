@@ -4,7 +4,7 @@ import { Cabecalho } from '../componentes/Layout';
 import { BarraFiltro, casa } from '../componentes/Filtros';
 import { Painel } from '../componentes/Painel';
 import { useAuth } from '../lib/auth';
-import { moeda, dataBr, hojeISO, dataFutura } from '../lib/formato';
+import { moeda, dataBr, hojeISO, dataFutura, paraNumero } from '../lib/formato';
 import { gerarDocumentoPdf, abrirAbaDiferida } from '../lib/api/documentos';
 import {
   listarContratos, salvarContrato, arquivarContrato, lacunasDoContrato,
@@ -40,15 +40,13 @@ const emMeses = (m: number) => dataFutura({ meses: m });
  * Agora o ponto só é tratado como milhar quando está na posição de milhar
  * (seguido de exatamente três dígitos e nada mais que dígito ou vírgula).
  */
-const dec = (v: unknown) => {
-  if (typeof v === 'number') return Number.isFinite(v) ? v : 0;
-  const t = String(v ?? '').trim();
-  if (!t) return 0;
-  const normalizado = t.includes(',')
-    ? t.replace(/\./g, '').replace(',', '.')   // pt-BR: ponto é milhar
-    : t;                                       // sem vírgula: ponto é decimal
-  return Number(normalizado) || 0;
-};
+/**
+ * ARMADILHA JÁ PAGA: esta função morava aqui e o comentário dela prometia uma
+ * regra que o código não tinha — sem vírgula, "12.000" virava 12, e um
+ * contrato de doze mil reais era salvo como doze reais, sem erro nem aviso.
+ * A regra de verdade agora é única e testada, em `lib/formato`.
+ */
+const dec = paraNumero;
 
 const vazio = (): Form => ({
   cadastro_id: '', proposta_id: null, tipo: 'manutencao', descricao: '',
