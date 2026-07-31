@@ -55,6 +55,20 @@ input,select,textarea{font-family:inherit;font-size:inherit;color:inherit}
 .topbar-right{margin-left:auto;display:flex;align-items:center;gap:14px}
 .whoami{font-size:13px;color:rgba(255,255,255,.6);display:none}
 @media(min-width:720px){.whoami{display:block}}
+/* Volta para o funil. Fica antes de "Cadastros" e com a cor da marca porque é
+   saída de contexto, não mais uma aba do painel — quem chegou aqui pelo CRM
+   precisa enxergar o caminho de volta sem procurar. */
+.volta-funil{
+  background:rgba(255,198,30,.14);color:#FFC61E !important;
+  font-weight:600;border:1px solid rgba(255,198,30,.28)
+}
+.volta-funil:hover{background:rgba(255,198,30,.24);color:#fff !important}
+.link-gestao{
+  font-size:13px;color:rgba(255,255,255,.6);text-decoration:none;display:none;
+  padding:6px 10px;border-radius:8px
+}
+.link-gestao:hover{color:#fff;background:rgba(255,255,255,.09)}
+@media(min-width:900px){.link-gestao{display:block}}
 .link-site{font-size:13px;color:rgba(255,255,255,.6);text-decoration:none;display:none}
 .link-site:hover{color:#fff}
 @media(min-width:900px){.link-site{display:block}}

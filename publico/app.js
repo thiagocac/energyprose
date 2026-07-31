@@ -81,10 +81,15 @@ function layout(conteudo, ativo) {
     <div class="wrap topbar-in">
       <div class="brand"><span class="dot"></span>EnergyPRO</div>
       <nav class="navlinks">
+        <!-- SEM data-rota: /crm é do app React, não deste roteador. Um link
+             comum recarrega a página e entrega a rota a quem sabe tratá-la;
+             a sessão é a mesma, então a troca é transparente. -->
+        <a href="/crm" class="volta-funil" title="Voltar ao funil de vendas">← Funil</a>
         <a href="/cadastros" data-rota class="${ativo === 'lista' ? 'on' : ''}">Cadastros</a>
         <a href="/novo" data-rota class="${ativo === 'form' ? 'on' : ''}">Novo cadastro</a>
       </nav>
       <div class="topbar-right">
+        <a class="link-gestao" href="/propostas">Propostas</a>
         <!-- Link comum de propósito: sai do painel e abre a página do cliente. -->
         <a class="link-site" href="/" target="_blank" rel="noopener">Página do cliente ↗</a>
         <span class="whoami">${esc(App.perfil?.nome || App.user?.email || '')}</span>

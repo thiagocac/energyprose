@@ -101,6 +101,7 @@ público; `08`–`15` acrescentaram o módulo comercial:
 | `17_catalogo_por_linha` | catálogo reescrito com a nomenclatura técnica das oito linhas (22 itens) |
 | `18_contexto_de_documento_por_linha` | `render_document_context` passa a devolver a linha e o `detalhe` de cada item; `propostas.prazo_execucao` |
 | `19_salvar_e_converter_por_linha` | `save_proposta` deriva `tipo` da linha e apaga o bloco de sistema fora da usina; `converter_proposta_em_contrato` respeita `contrato_tipo` |
+| `20_save_contrato` | `save_contrato` e `arquivar_contrato` — abre a edição de recorrência, visitas e vigência, e o contrato avulso sem proposta |
 
 ### Edge Functions
 
@@ -192,6 +193,24 @@ Por isso o Security Advisor mostra avisos `security_definer_function_executable`
 **intencionais**. A linha de base hoje é ~21 avisos (as RPCs da equipe + as 4 públicas +
 `auth_leaked_password_protection`, que é ajuste de painel). Alerta de outro tipo é regressão.
 
+## Navegação entre as duas aplicações
+
+O painel de cadastros (`publico/`) e o app de gestão (`src/`) são shells
+separados, cada um com seu roteador. O caminho entre eles é link comum, **sem**
+`data-rota` — o roteador do painel legado intercepta só o que é dele, e um link
+sem esse atributo recarrega a página e entrega a rota a quem sabe tratá-la. A
+sessão é a mesma, então a troca é transparente para quem está usando.
+
+| De | Para | Onde |
+|---|---|---|
+| Gestão | Cadastros | item "Cadastros" no menu lateral (`Layout.tsx`) |
+| Cadastros | Funil | botão "← Funil", em destaque âmbar (`publico/app.js`) |
+| Cadastros | Propostas | link "Propostas" no canto direito |
+
+O botão de volta tem cor da marca de propósito: sair do painel é troca de
+contexto, não mais uma aba — quem chegou pelo CRM precisa enxergar o caminho
+de volta sem procurar.
+
 ## Desenvolvimento
 
 ```bash
@@ -231,6 +250,9 @@ público. A paridade é responsabilidade dos testes — se mudar uma regra, mude
   supabase db pull
   ```
 - Revisão jurídica do texto do contrato antes do primeiro uso real.
+- Nada expira sozinho: `expirar_propostas()` existe, mas `pg_cron` não está
+  habilitado e ninguém a chama. Proposta vencida continua "enviada".
+- Envio só por WhatsApp — não há e-mail nem registro de "o cliente abriu o link".
 - **Decidir a assinatura da marca.** O site `energyprose.com.br` usa
   *Soluções em Engenharia*; o logo embutido no PDF (`src/glifos.mjs`) diz
   *Soluções em Energia Solar*. Com projeto elétrico, extensão de rede e
@@ -238,7 +260,6 @@ público. A paridade é responsabilidade dos testes — se mudar uma regra, mude
   trocar exige reextrair os contornos vetoriais da tagline.
 - Preencher CNPJ, endereço e e-mail comercial em Configurações: hoje estão em
   branco e o contrato imprime "—" no lugar do CNPJ da CONTRATADA.
-- Tela própria de Contratos (hoje o contrato é criado e emitido pela tela de Propostas).
 - Servir as fontes: elas já estão em `publico/fontes/`, mas só passam a valer
   depois do primeiro deploy. Até lá o PDF sai com as fontes padrão — o cabeçalho
   `x-fontes` da resposta diz qual foi usada, e a tela avisa.
