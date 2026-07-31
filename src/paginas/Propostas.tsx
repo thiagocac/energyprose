@@ -11,14 +11,15 @@ import {
   ROTULO_STATUS, type PropostaLinha, type ItemProposta, type StatusProposta,
 } from '../lib/api/propostas';
 import {
-  listarServicos, listarEquipamentos, listarCadastrosRef, obterConfigEmpresa,
-  descreverEquipamento, type Equipamento,
+  listarServicos, listarLinhas, listarEquipamentos, listarCadastrosRef, obterConfigEmpresa,
+  descreverEquipamento, type Equipamento, type LinhaServico,
 } from '../lib/api/catalogo';
 
 type Form = {
   id?: string;
-  cadastro_id: string; tipo: 'usina' | 'manutencao'; titulo: string; validade: string;
-  condicao_pagamento: string; observacoes: string;
+  /** A linha decide tudo: qual PDF sai, se pede sistema, se vira contrato. */
+  cadastro_id: string; linha: string; titulo: string; validade: string;
+  condicao_pagamento: string; prazo_execucao: string; observacoes: string;
   recipient_name: string; recipient_whatsapp: string; recipient_email: string;
   modulo_id: string; modulo_qtd: string; inversor_id: string;
   potencia_kwp: string; geracao: string; hsp: string; pr: string;
@@ -28,8 +29,8 @@ type Form = {
 };
 
 const vazio = (): Form => ({
-  cadastro_id: '', tipo: 'usina', titulo: '', validade: '',
-  condicao_pagamento: '', observacoes: '',
+  cadastro_id: '', linha: 'usina_fotovoltaica', titulo: '', validade: '',
+  condicao_pagamento: '', prazo_execucao: '', observacoes: '',
   recipient_name: '', recipient_whatsapp: '', recipient_email: '',
   modulo_id: '', modulo_qtd: '', inversor_id: '',
   potencia_kwp: '', geracao: '', hsp: '', pr: '', observacoes_tecnicas: '',
@@ -50,6 +51,7 @@ export function Propostas() {
 
   const propostas = useQuery({ queryKey: ['propostas'], queryFn: listarPropostas });
   const servicos = useQuery({ queryKey: ['servicos'], queryFn: () => listarServicos(true) });
+  const linhas = useQuery({ queryKey: ['linhas-servico'], queryFn: listarLinhas });
   const equipamentos = useQuery({ queryKey: ['equipamentos'], queryFn: listarEquipamentos });
   const cadastros = useQuery({ queryKey: ['cadastros-ref'], queryFn: listarCadastrosRef });
   const config = useQuery({ queryKey: ['config-empresa'], queryFn: obterConfigEmpresa });
@@ -61,6 +63,23 @@ export function Propostas() {
     () => (cadastros.data ?? []).find((c) => c.id === form?.cadastro_id),
     [cadastros.data, form?.cadastro_id],
   );
+
+  const acharLinha = (codigo: string | null | undefined): LinhaServico | undefined =>
+    (linhas.data ?? []).find((l) => l.codigo === codigo);
+  const linhaSel = acharLinha(form?.linha);
+  const ehUsina = (linhaSel?.documento ?? 'usina') === 'usina';
+
+  // O catálogo inteiro numa lista só vira rolagem: mostramos primeiro os itens
+  // da linha escolhida e deixamos o resto acessível, para o vendedor ainda poder
+  // somar um serviço de outra linha na mesma proposta.
+  const servicosDaLinha = useMemo(() => {
+    const todos = servicos.data ?? [];
+    if (!form?.linha) return { proprios: todos, outros: [] as typeof todos };
+    return {
+      proprios: todos.filter((x) => x.linha === form.linha),
+      outros: todos.filter((x) => x.linha !== form.linha),
+    };
+  }, [servicos.data, form?.linha]);
 
   const total = useMemo(
     () => itens.reduce((s, i) => s + i.quantidade * i.preco_unitario * (1 - i.desconto_pct / 100), 0),
@@ -112,9 +131,10 @@ export function Propostas() {
       const p = await obterProposta(id);
       const s = p.sistema;
       setForm({
-        id: p.id, cadastro_id: p.cadastro_id ?? '', tipo: (p.tipo as 'usina' | 'manutencao') ?? 'usina',
+        id: p.id, cadastro_id: p.cadastro_id ?? '', linha: p.linha || 'usina_fotovoltaica',
         titulo: p.titulo ?? '', validade: p.validade ?? '',
-        condicao_pagamento: p.condicao_pagamento ?? '', observacoes: p.observacoes ?? '',
+        condicao_pagamento: p.condicao_pagamento ?? '',
+        prazo_execucao: p.prazo_execucao ?? '', observacoes: p.observacoes ?? '',
         recipient_name: p.recipient_name ?? '', recipient_whatsapp: p.recipient_whatsapp ?? '',
         recipient_email: p.recipient_email ?? '',
         modulo_id: s?.modulo_id ?? '', modulo_qtd: s?.modulo_qtd ? String(s.modulo_qtd) : '',
@@ -153,15 +173,16 @@ export function Propostas() {
       const m = acharEquip(form.modulo_id);
       const inv = acharEquip(form.inversor_id);
       return salvarProposta({
-        id: form.id, cadastro_id: form.cadastro_id, tipo: form.tipo,
+        id: form.id, cadastro_id: form.cadastro_id, linha: form.linha,
         titulo: form.titulo || null, validade: form.validade || null,
         condicao_pagamento: form.condicao_pagamento || null,
+        prazo_execucao: form.prazo_execucao || null,
         observacoes: form.observacoes || null,
         recipient_name: form.recipient_name || cliente?.nome || null,
         recipient_whatsapp: soDigitos(form.recipient_whatsapp) || cliente?.whatsapp || null,
         recipient_email: form.recipient_email || cliente?.email || null,
         itens: itens.filter((i) => i.descricao.trim()),
-        sistema: form.tipo !== 'usina' ? null : {
+        sistema: !ehUsina ? null : {
           modulo_id: form.modulo_id || null, modulo_qtd: Number(form.modulo_qtd) || null,
           // descrição congelada: o PDF de hoje não pode mudar se o catálogo mudar amanhã
           modulo_descricao: m ? descreverEquipamento(m) : null,
@@ -182,11 +203,11 @@ export function Propostas() {
   });
 
   // ===== Ações da lista =====
-  async function pdf(id: string) {
-    const aba = abrirAbaDiferida('Gerando a proposta…');
+  async function pdf(id: string, tipo: 'proposta' | 'contrato' = 'proposta') {
+    const aba = abrirAbaDiferida(`Gerando o ${tipo}…`);
     setOcupado(`pdf:${id}`); setErro(''); setAviso('');
     try {
-      const doc = await gerarDocumentoPdf('proposta', id);
+      const doc = await gerarDocumentoPdf(tipo, id);
       aba.mostrar(doc.blob, doc.nomeArquivo);
       setAviso(doc.fontes === 'padrao'
         ? 'PDF gerado com as fontes padrão — o site ainda não está servindo /fontes/*.ttf.'
@@ -245,7 +266,7 @@ export function Propostas() {
             <table className="tabela">
               <thead>
                 <tr>
-                  <th>Número</th><th>Cliente</th><th>Sistema</th>
+                  <th>Número</th><th>Cliente</th><th>Linha</th><th>Sistema</th>
                   <th className="dir">Valor</th><th>Status</th><th>Validade</th><th>Ações</th>
                 </tr>
               </thead>
@@ -257,6 +278,12 @@ export function Propostas() {
                       {p.revision > 0 ? <div className="meta">revisão {p.revision}</div> : null}
                     </td>
                     <td>{p.cliente ?? '—'}<div className="meta">{p.cidade ?? ''}</div></td>
+                    <td>
+                      {acharLinha(p.linha)?.nome ?? p.linha}
+                      <div className="meta">
+                        {(acharLinha(p.linha)?.documento ?? 'usina') === 'usina' ? 'proposta de usina' : 'proposta comercial'}
+                      </div>
+                    </td>
                     <td>
                       {p.potencia_kwp
                         ? <>{numero(p.potencia_kwp, 2)} kWp<div className="meta">{p.modulo_qtd} módulos</div></>
@@ -281,10 +308,15 @@ export function Propostas() {
                               onClick={() => void acao(`dup:${p.id}`, () => duplicarProposta(p.id), 'Duplicada como novo rascunho.')}>
                               Duplicar
                             </button> : null}
-                        {pode('converter') && p.status === 'aceita' && !p.contrato_id
+                        {pode('converter') && p.status === 'aceita' && !p.contrato_id && acharLinha(p.linha)?.contrato_tipo
                           ? <button className="botao discreto" disabled={!!ocupado}
                               onClick={() => void acao(`ctr:${p.id}`, () => converterEmContrato(p.id), 'Contrato criado.')}>
                               Criar contrato
+                            </button> : null}
+                        {p.contrato_id
+                          ? <button className="botao discreto" disabled={!!ocupado}
+                              onClick={() => void pdf(p.contrato_id as string, 'contrato')}>
+                              {ocupado === `pdf:${p.contrato_id}` ? 'Gerando…' : 'Contrato (PDF)'}
                             </button> : null}
                         {escrever && p.status === 'rascunho'
                           ? <button className="botao discreto" style={{ color: 'var(--ruim)' }} disabled={!!ocupado}
@@ -321,10 +353,9 @@ export function Propostas() {
                   </select>
                 </label>
                 <label className="campo">
-                  <span>Tipo</span>
-                  <select value={form.tipo} onChange={(e) => setForm({ ...form, tipo: e.target.value as 'usina' | 'manutencao' })}>
-                    <option value="usina">Usina fotovoltaica</option>
-                    <option value="manutencao">Manutenção</option>
+                  <span>Linha de serviço *</span>
+                  <select value={form.linha} onChange={(e) => setForm({ ...form, linha: e.target.value })}>
+                    {(linhas.data ?? []).map((l) => <option key={l.codigo} value={l.codigo}>{l.nome}</option>)}
                   </select>
                 </label>
                 <label className="campo">
@@ -350,7 +381,17 @@ export function Propostas() {
                 </div>
               ) : null}
 
-              {form.tipo === 'usina' ? (
+              {linhaSel ? (
+                <p className="meta" style={{ marginTop: -8, marginBottom: 14 }}>
+                  {linhaSel.descricao}
+                  {' '}<b>Documento:</b> {ehUsina ? 'proposta de usina' : 'Proposta Comercial'}.
+                  {' '}<b>Contrato:</b> {linhaSel.contrato_tipo
+                    ? (linhaSel.contrato_tipo === 'manutencao' ? 'de manutenção' : 'de fornecimento e instalação')
+                    : 'não gera — fecha no aceite da proposta'}.
+                </p>
+              ) : null}
+
+              {ehUsina ? (
                 <section className="bloco">
                   <h3>Sistema proposto</h3>
                   <div className="grade2">
@@ -409,9 +450,20 @@ export function Propostas() {
                 <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginBottom: 12 }}>
                   <select className="sel-inline" value="" onChange={(e) => { addServico(e.target.value); e.currentTarget.value = ''; }}>
                     <option value="">Adicionar do catálogo…</option>
-                    {(servicos.data ?? []).map((s) => (
-                      <option key={s.id} value={s.id}>{s.codigo} · {s.nome}</option>
-                    ))}
+                    {servicosDaLinha.proprios.length ? (
+                      <optgroup label={linhaSel?.nome ?? 'Desta linha'}>
+                        {servicosDaLinha.proprios.map((s) => (
+                          <option key={s.id} value={s.id}>{s.codigo} · {s.nome}</option>
+                        ))}
+                      </optgroup>
+                    ) : null}
+                    {servicosDaLinha.outros.length ? (
+                      <optgroup label="Outras linhas">
+                        {servicosDaLinha.outros.map((s) => (
+                          <option key={s.id} value={s.id}>{s.codigo} · {s.nome}</option>
+                        ))}
+                      </optgroup>
+                    ) : null}
                   </select>
                   <button className="botao secundario" onClick={() => setItens((v) => [...v, {
                     descricao: '', unidade: 'un', tipo_cobranca: 'avulso', quantidade: 1, preco_unitario: 0, desconto_pct: 0,
@@ -455,6 +507,13 @@ export function Propostas() {
                   <input value={form.condicao_pagamento} placeholder="Deixe em branco para usar o padrão da empresa"
                          onChange={(e) => setForm({ ...form, condicao_pagamento: e.target.value })} />
                 </label>
+                {!ehUsina ? (
+                  <label className="campo">
+                    <span>Prazo de execução</span>
+                    <input value={form.prazo_execucao} placeholder="Ex.: 5 dias úteis após a aprovação"
+                           onChange={(e) => setForm({ ...form, prazo_execucao: e.target.value })} />
+                  </label>
+                ) : null}
                 <label className="campo">
                   <span>Observações</span>
                   <textarea rows={2} value={form.observacoes}

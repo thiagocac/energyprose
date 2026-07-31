@@ -10,7 +10,7 @@
     "preview": "vite preview",
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
-    "build:ef": "esbuild supabase/functions/gerar-documento-pdf/src/entrada.mjs --bundle --format=esm --minify --external:pdf-lib --outfile=supabase/functions/gerar-documento-pdf/layout.js"
+    "build:ef": "esbuild supabase/functions/gerar-documento-pdf/src/entrada.mjs --bundle --format=esm --minify --charset=utf8 --external:pdf-lib --outfile=supabase/functions/gerar-documento-pdf/layout.js"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.45.4",

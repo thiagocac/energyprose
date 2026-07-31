@@ -4,8 +4,19 @@ import { sb } from '../supabase';
 
 export type Servico = {
   id: string; codigo: string; nome: string; descricao: string | null;
-  categoria: string; unidade: string; tipo_cobranca: string;
+  categoria: string; linha: string | null; unidade: string; tipo_cobranca: string;
   preco_sugerido: number; ativo: boolean;
+};
+
+/**
+ * Linha de serviço: o que a Energy PRO vende. `documento` decide qual PDF a
+ * proposta gera e `contrato_tipo` diz se aquilo vira contrato — as duas regras
+ * moram no banco de propósito, para o front não ter uma segunda versão delas.
+ */
+export type LinhaServico = {
+  codigo: string; nome: string; apelido: string | null; descricao: string;
+  documento: 'usina' | 'servico'; contrato_tipo: 'usina' | 'manutencao' | null;
+  ordem: number;
 };
 
 export type Equipamento = {
@@ -36,9 +47,17 @@ export function descreverEquipamento(e: Equipamento): string {
   return `${e.fabricante} ${e.modelo}${potencia}`;
 }
 
+export async function listarLinhas(): Promise<LinhaServico[]> {
+  const { data, error } = await sb.from('linhas_servico')
+    .select('codigo, nome, apelido, descricao, documento, contrato_tipo, ordem')
+    .eq('ativo', true).order('ordem');
+  if (error) throw new Error(error.message);
+  return (data ?? []) as unknown as LinhaServico[];
+}
+
 export async function listarServicos(somenteAtivos = true): Promise<Servico[]> {
   let q = sb.from('servicos_catalogo')
-    .select('id, codigo, nome, descricao, categoria, unidade, tipo_cobranca, preco_sugerido, ativo')
+    .select('id, codigo, nome, descricao, categoria, linha, unidade, tipo_cobranca, preco_sugerido, ativo')
     .is('deleted_at', null).order('codigo');
   if (somenteAtivos) q = q.eq('ativo', true);
   const { data, error } = await q;
@@ -80,6 +99,7 @@ export async function salvarServico(s: Partial<Servico> & { nome: string; codigo
   const dados = {
     codigo: s.codigo.trim().toUpperCase(), nome: s.nome.trim(),
     descricao: s.descricao ?? null, categoria: s.categoria ?? 'servico',
+    linha: s.linha || null,
     unidade: s.unidade ?? 'un', tipo_cobranca: s.tipo_cobranca ?? 'avulso',
     preco_sugerido: Number(s.preco_sugerido) || 0, ativo: s.ativo !== false,
   };

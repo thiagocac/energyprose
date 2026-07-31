@@ -4,7 +4,7 @@ import { Cabecalho } from '../componentes/Layout';
 import { useAuth } from '../lib/auth';
 import { moeda, numero } from '../lib/formato';
 import {
-  listarServicos, listarEquipamentosTodos, salvarServico, salvarEquipamento,
+  listarServicos, listarLinhas, listarEquipamentosTodos, salvarServico, salvarEquipamento,
   alternarAtivo, descreverEquipamento, type Servico, type Equipamento,
 } from '../lib/api/catalogo';
 
@@ -29,6 +29,9 @@ export function Catalogo() {
   const [equip, setEquip] = useState<Partial<Equipamento> | null>(null);
 
   const servicos = useQuery({ queryKey: ['servicos-todos'], queryFn: () => listarServicos(false) });
+  const linhas = useQuery({ queryKey: ['linhas-servico'], queryFn: listarLinhas });
+  const nomeLinha = (c: string | null | undefined) =>
+    (linhas.data ?? []).find((l) => l.codigo === c)?.nome ?? '';
   const equipamentos = useQuery({ queryKey: ['equipamentos-todos'], queryFn: listarEquipamentosTodos });
   const escrever = pode('escrever');
 
@@ -63,7 +66,7 @@ export function Catalogo() {
         sub="Os módulos e inversores daqui alimentam o bloco “Sistema proposto”, com as garantias já preenchidas. Os serviços viram itens da proposta."
         acao={escrever ? (
           <button className="botao" onClick={() => (aba === 'servicos'
-            ? setServico({ categoria: 'servico', unidade: 'un', tipo_cobranca: 'avulso', preco_sugerido: 0, ativo: true })
+            ? setServico({ categoria: 'servico', linha: 'projeto_eletrico', unidade: 'un', tipo_cobranca: 'avulso', preco_sugerido: 0, ativo: true })
             : setEquip({ tipo: 'modulo', ativo: true }))}>
             {aba === 'servicos' ? 'Novo serviço' : 'Novo equipamento'}
           </button>
@@ -136,7 +139,7 @@ export function Catalogo() {
               <tbody>
                 {(servicos.data ?? []).map((s) => (
                   <tr key={s.id} style={{ opacity: s.ativo ? 1 : 0.55 }}>
-                    <td><b>{s.codigo}</b><div className="meta">{rot(CATEGORIAS, s.categoria)}</div></td>
+                    <td><b>{s.codigo}</b><div className="meta">{nomeLinha(s.linha) || rot(CATEGORIAS, s.categoria)}</div></td>
                     <td>{s.nome}{s.descricao ? <div className="meta">{s.descricao}</div> : null}</td>
                     <td>{rot(COBRANCAS, s.tipo_cobranca)}<div className="meta">por {s.unidade}</div></td>
                     <td className="dir">{s.preco_sugerido > 0 ? moeda(s.preco_sugerido) : <span className="meta">por proposta</span>}</td>
@@ -252,6 +255,14 @@ export function Catalogo() {
                   <select value={servico.categoria ?? 'servico'}
                           onChange={(e) => setServico({ ...servico, categoria: e.target.value })}>
                     {CATEGORIAS.map(([v, r]) => <option key={v} value={v}>{r}</option>)}
+                  </select>
+                </label>
+                <label className="campo">
+                  <span>Linha de serviço</span>
+                  <select value={servico.linha ?? ''}
+                          onChange={(e) => setServico({ ...servico, linha: e.target.value || null })}>
+                    <option value="">Sem linha</option>
+                    {(linhas.data ?? []).map((l) => <option key={l.codigo} value={l.codigo}>{l.nome}</option>)}
                   </select>
                 </label>
                 <label className="campo" style={{ gridColumn: '1 / -1' }}>

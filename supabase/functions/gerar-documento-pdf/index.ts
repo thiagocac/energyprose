@@ -1,29 +1,42 @@
 // ============================================================================
 // gerar-documento-pdf — Edge Function
 //
-// Gera o PDF comercial da Energy PRO a partir dos dados reais da proposta.
-// Fluxo: autentica → render_document_context (RLS decide o que o usuário vê)
-// → desenha → guarda no bucket privado `documentos` → devolve o PDF binário.
+// Gera os documentos comerciais da Energy PRO a partir dos dados reais. Sao
+// TRES layouts, e quem escolhe nao e o front:
 //
-// O layout é FIXO, em código (não há editor de template). O que muda de tempos
-// em tempos vem de config_empresa, editável em tela.
+//   proposta + linha.documento = 'usina'   -> proposta rica de usina solar
+//   proposta + linha.documento = 'servico' -> Proposta Comercial (engenharia)
+//   contrato                               -> contrato (usina ou manutencao)
 //
-// FONTES: as três fontes do documento são buscadas do próprio site
-// (/fontes/*.ttf) e ficam em cache no escopo do módulo — só o cold start paga.
-// Se a busca falhar, o PDF ainda sai, com as fontes padrão do PDF: melhor um
-// documento com tipografia genérica do que uma proposta que não sai.
+// A linha de servico vem do banco junto com o contexto, entao a regra fica num
+// lugar so: quem cadastra uma linha nova decide ali qual documento ela usa.
+//
+// Fluxo: autentica -> render_document_context (o RLS decide o que o usuario ve)
+// -> desenha -> guarda no bucket privado `documentos` -> devolve o PDF binario.
+//
+// O layout e FIXO, em codigo (nao ha editor de template). O que muda de tempos
+// em tempos — beneficios, itens inclusos, condicoes, prazos, engenheiro — vem
+// de config_empresa, editavel em tela.
+//
+// FONTES: buscadas do proprio site (/fontes/*.ttf) e mantidas em cache no
+// escopo do modulo — so o cold start paga. ARMADILHA JA PAGA: o Netlify
+// responde HTTP 200 com o index.html para QUALQUER caminho inexistente (regra
+// /* do SPA), entao `response.ok` NAO prova que veio uma fonte. Conferimos a
+// assinatura sfnt dos bytes; se nao for fonte de verdade, o PDF sai com as
+// fontes padrao em vez de estourar. O logo nao depende disso — e contorno
+// vetorial e sai identico.
 // ============================================================================
 import { createClient } from 'jsr:@supabase/supabase-js@2';
 import { PDFDocument, StandardFonts } from 'pdf-lib';
 import fontkit from '@pdf-lib/fontkit';
 import QRCode from 'qrcode';
-import { renderProposta } from './layout.js';
+import { renderContrato, renderProposta, renderPropostaServico } from './layout.js';
 
 const CORS = {
   'access-control-allow-origin': '*',
   'access-control-allow-headers': 'authorization, x-client-info, apikey, content-type',
   'access-control-allow-methods': 'POST,OPTIONS',
-  'access-control-expose-headers': 'x-documento-id, x-storage-path, x-fontes',
+  'access-control-expose-headers': 'x-documento-id, x-storage-path, x-fontes, x-layout',
 };
 
 const URL_SUPABASE = Deno.env.get('SUPABASE_URL') ?? '';
@@ -37,9 +50,16 @@ const ARQUIVOS_FONTE: Record<string, string> = {
   pop7: 'poppins-700.ttf',
 };
 
+// Assinaturas de arquivo de fonte: TrueType, OpenType/CFF, 'true', colecao.
+const ASSINATURAS = [0x00010000, 0x4f54544f, 0x74727565, 0x74746366];
+function pareceFonte(b: Uint8Array): boolean {
+  if (b.length < 2048) return false;
+  const magica = (((b[0] << 24) | (b[1] << 16) | (b[2] << 8) | b[3]) >>> 0);
+  return ASSINATURAS.includes(magica);
+}
+
 let cacheFontes: Record<string, Uint8Array> | null = null;
 
-/** Baixa as fontes uma vez por instância. Devolve null se não conseguir. */
 async function baixarFontes(): Promise<Record<string, Uint8Array> | null> {
   if (cacheFontes) return cacheFontes;
   try {
@@ -47,13 +67,17 @@ async function baixarFontes(): Promise<Record<string, Uint8Array> | null> {
       Object.entries(ARQUIVOS_FONTE).map(async ([chave, arq]) => {
         const r = await fetch(`${BASE_SITE}/fontes/${arq}`);
         if (!r.ok) throw new Error(`${arq}: HTTP ${r.status}`);
-        return [chave, new Uint8Array(await r.arrayBuffer())] as const;
+        const bytes = new Uint8Array(await r.arrayBuffer());
+        if (!pareceFonte(bytes)) {
+          throw new Error(`${arq}: nao e fonte (provavelmente o index.html do site; ${bytes.length} bytes)`);
+        }
+        return [chave, bytes] as const;
       }),
     );
     cacheFontes = Object.fromEntries(pares);
     return cacheFontes;
   } catch (e) {
-    console.warn('fontes indisponíveis, usando as padrão do PDF:', (e as Error).message);
+    console.warn('fontes da marca indisponiveis, usando as padrao:', (e as Error).message);
     return null;
   }
 }
@@ -66,82 +90,140 @@ const jsonErro = (msg: string, status: number, extra: Record<string, unknown> = 
 const seguro = (v: string) => v.normalize('NFD').replace(/[̀-ͯ]/g, '')
   .replace(/[^A-Za-z0-9._-]+/g, '-').replace(/-+/g, '-').replace(/^-|-$/g, '');
 
+// deno-lint-ignore no-explicit-any
+type Ctx = Record<string, any>;
+
+/** 'usina' | 'servico' | 'contrato' — qual funcao de desenho usar. */
+function escolherLayout(tipo: string, ctx: Ctx): string {
+  if (tipo === 'contrato') return 'contrato';
+  return ctx.linha?.documento === 'servico' ? 'servico' : 'usina';
+}
+
+const CAMPOS_SISTEMA: Array<[string, string]> = [
+  ['modulo_qtd', 'quantidade de modulos'],
+  ['modulo_descricao', 'modelo dos modulos'],
+  ['inversor_descricao', 'modelo do inversor'],
+  ['potencia_instalada_kwp', 'potencia instalada'],
+];
+
+/**
+ * O que cada documento exige para poder ser emitido.
+ *
+ * Usina precisa do quadro tecnico: sem modulos e inversor a proposta sai com
+ * buracos onde o cliente procura o que esta comprando. Servico nao tem quadro
+ * tecnico nenhum — precisa e de ITEM, porque uma Proposta Comercial sem linha
+ * na grade e uma folha com preco e nenhuma justificativa.
+ */
+function conferir(layout: string, ctx: Ctx): string[] {
+  const faltando: string[] = [];
+  if (!ctx.cliente?.nome) faltando.push('cliente');
+
+  if (layout === 'contrato') {
+    if (!ctx.contrato?.numero) faltando.push('numero do contrato');
+    if (!Number(ctx.contrato?.valor_total)) faltando.push('valor do contrato');
+    // Contrato de MANUTENCAO nao exige sistema: a Energy PRO vende plano para
+    // usina que ela mesma nao instalou. Nesse caso o Anexo I so nao sai.
+    if (ctx.contrato?.tipo !== 'manutencao') {
+      for (const [k, rot] of CAMPOS_SISTEMA) if (!ctx.sistema?.[k]) faltando.push(rot);
+    }
+    return faltando;
+  }
+
+  if (!ctx.proposta?.numero) faltando.push('numero da proposta');
+  if (!Number(ctx.proposta?.valor_total)) faltando.push('valor (a proposta esta sem itens)');
+  if (layout === 'usina') {
+    for (const [k, rot] of CAMPOS_SISTEMA) if (!ctx.sistema?.[k]) faltando.push(rot);
+  } else if (!Array.isArray(ctx.itens) || ctx.itens.length === 0) {
+    faltando.push('itens da proposta');
+  }
+  return faltando;
+}
+
 Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') return new Response('ok', { headers: CORS });
-  if (req.method !== 'POST') return jsonErro('Método não permitido.', 405);
+  if (req.method !== 'POST') return jsonErro('Metodo nao permitido.', 405);
 
   try {
     const corpo = await req.json().catch(() => ({})) as Record<string, unknown>;
     const tipo = String(corpo.tipo ?? corpo.entity_type ?? '').trim();
     const id = String(corpo.id ?? corpo.entity_id ?? '').trim();
     if (!['proposta', 'contrato'].includes(tipo)) return jsonErro('tipo deve ser proposta ou contrato.', 400);
-    if (!/^[0-9a-f-]{36}$/i.test(id)) return jsonErro('id inválido.', 400);
-    if (tipo === 'contrato') return jsonErro('O documento de contrato ainda não está disponível.', 422);
+    if (!/^[0-9a-f-]{36}$/i.test(id)) return jsonErro('id invalido.', 400);
+    const ehContrato = tipo === 'contrato';
 
     const auth = req.headers.get('Authorization') ?? '';
-    if (!auth) return jsonErro('Não autorizado.', 401);
+    if (!auth) return jsonErro('Nao autorizado.', 401);
 
-    // Cliente COM o token do usuário: o gate de is_equipe() dentro da RPC decide.
     const comUsuario = createClient(URL_SUPABASE, CHAVE_ANON, {
       global: { headers: { Authorization: auth } },
       auth: { persistSession: false },
     });
     const { data: usuario } = await comUsuario.auth.getUser();
-    if (!usuario?.user) return jsonErro('Sessão inválida.', 401);
+    if (!usuario?.user) return jsonErro('Sessao invalida.', 401);
 
     const { data: ctx, error: erroCtx } = await comUsuario.rpc('render_document_context', {
       p_tipo: tipo, p_id: id,
     });
     if (erroCtx) {
       const negado = erroCtx.code === '42501';
-      return jsonErro(negado ? 'Sem permissão para emitir este documento.' : erroCtx.message, negado ? 403 : 400);
+      return jsonErro(negado ? 'Sem permissao para emitir este documento.' : erroCtx.message, negado ? 403 : 400);
     }
-    if (!ctx?.proposta) return jsonErro('Proposta não encontrada.', 404);
+    if (ehContrato ? !ctx?.contrato : !ctx?.proposta) {
+      return jsonErro(ehContrato ? 'Contrato nao encontrado.' : 'Proposta nao encontrada.', 404);
+    }
 
-    // ---- validação do que o layout exige ----
-    const faltando: string[] = [];
-    if (!ctx.cliente?.nome) faltando.push('cliente');
-    if (!ctx.proposta?.numero) faltando.push('número da proposta');
-    if (!Number(ctx.proposta?.valor_total)) faltando.push('valor (a proposta está sem itens)');
-    const s = ctx.sistema ?? {};
-    if (!s.modulo_qtd) faltando.push('quantidade de módulos');
-    if (!s.modulo_descricao) faltando.push('modelo dos módulos');
-    if (!s.inversor_descricao) faltando.push('modelo do inversor');
-    if (!s.potencia_instalada_kwp) faltando.push('potência instalada');
+    const layout = escolherLayout(tipo, ctx);
+    const faltando = conferir(layout, ctx);
     if (faltando.length) {
-      return jsonErro('Faltam dados para gerar a proposta.', 422, { campos: faltando });
+      return jsonErro(`Faltam dados para gerar ${ehContrato ? 'o contrato' : 'a proposta'}.`, 422, { campos: faltando });
     }
 
     // ---- desenho ----
     const doc = await PDFDocument.create();
-    const fontes = await baixarFontes();
     const F: Record<string, unknown> = {};
+    let usouMarca = false;
+    const fontes = await baixarFontes();
     if (fontes) {
-      doc.registerFontkit(fontkit);
-      for (const [chave, bytes] of Object.entries(fontes)) {
-        F[chave] = await doc.embedFont(bytes, { subset: true });
+      try {
+        doc.registerFontkit(fontkit);
+        for (const [chave, bytes] of Object.entries(fontes)) {
+          F[chave] = await doc.embedFont(bytes, { subset: true });
+        }
+        usouMarca = true;
+      } catch (e) {
+        console.warn('falha ao embutir as fontes da marca:', (e as Error).message);
+        cacheFontes = null;   // nao guarda bytes ruins no cache
       }
-    } else {
+    }
+    if (!usouMarca) {
       F.os4 = await doc.embedFont(StandardFonts.Helvetica);
       F.pop6 = await doc.embedFont(StandardFonts.HelveticaBold);
       F.pop7 = await doc.embedFont(StandardFonts.HelveticaBold);
     }
-    F.os6 = F.os4;   // rótulos em regular (decisão de tipografia, ver README)
+    F.os6 = F.os4;   // rotulos em regular (decisao de tipografia)
 
-    const whatsapp = String(ctx.empresa?.whatsapp ?? '').replace(/\D/g, '');
-    const qr = whatsapp ? QRCode.create(`https://wa.me/${whatsapp}`, { errorCorrectionLevel: 'M' }).modules : null;
-
-    doc.setTitle(`Proposta ${ctx.proposta.numero} — ${ctx.cliente.nome}`);
+    const numero = String((ehContrato ? ctx.contrato?.numero : ctx.proposta?.numero) ?? '');
+    doc.setTitle(`${ehContrato ? 'Contrato' : 'Proposta'} ${numero} — ${ctx.cliente.nome}`);
     doc.setAuthor(String(ctx.empresa?.nome ?? 'Energy PRO'));
-    doc.setProducer('Energy PRO Gestão');
+    doc.setProducer('Energy PRO Gestao');
     doc.setCreationDate(new Date());
-    renderProposta(doc, ctx, F, qr);
+
+    if (layout === 'contrato') {
+      // O contrato nao tem QR: e documento de assinatura, nao peca de venda.
+      renderContrato(doc, ctx, F);
+    } else {
+      const whatsapp = String(ctx.empresa?.whatsapp ?? '').replace(/\D/g, '');
+      const qr = whatsapp ? QRCode.create(`https://wa.me/${whatsapp}`, { errorCorrectionLevel: 'M' }).modules : null;
+      if (layout === 'servico') renderPropostaServico(doc, ctx, F, qr);
+      else renderProposta(doc, ctx, F, qr);
+    }
     const bytes = await doc.save();
 
     // ---- trilha e arquivo ----
     const servico = createClient(URL_SUPABASE, CHAVE_SERVICO, { auth: { persistSession: false } });
-    const nome = `${seguro(ctx.proposta.numero)}-R${ctx.proposta.revisao ?? 0}.pdf`;
-    const caminho = `propostas/${id}/${Date.now()}-${nome}`;
+    const revisao = ehContrato ? null : (ctx.proposta?.revisao ?? 0);
+    const nome = `${seguro(numero)}${revisao === null ? '' : `-R${revisao}`}.pdf`;
+    const caminho = `${ehContrato ? 'contratos' : 'propostas'}/${id}/${Date.now()}-${nome}`;
 
     const { error: erroUp } = await servico.storage.from('documentos')
       .upload(caminho, bytes, { contentType: 'application/pdf', upsert: false });
@@ -160,11 +242,18 @@ Deno.serve(async (req) => {
     }).select('id').single();
 
     if (!erroUp) {
-      await servico.from('propostas').update({ pdf_path: caminho }).eq('id', id);
-      await servico.from('proposta_eventos').insert({
-        proposta_id: id, event_type: 'pdf_gerado', actor_id: usuario.user.id,
-        detail: { caminho, sha256: sha, fontes: fontes ? 'marca' : 'padrao' },
-      });
+      const detalhe = { caminho, sha256: sha, fontes: usouMarca ? 'marca' : 'padrao', layout };
+      if (ehContrato) {
+        await servico.from('contratos').update({ pdf_path: caminho }).eq('id', id);
+        await servico.from('contrato_eventos').insert({
+          contrato_id: id, event_type: 'pdf_gerado', actor_id: usuario.user.id, detail: detalhe,
+        });
+      } else {
+        await servico.from('propostas').update({ pdf_path: caminho }).eq('id', id);
+        await servico.from('proposta_eventos').insert({
+          proposta_id: id, event_type: 'pdf_gerado', actor_id: usuario.user.id, detail: detalhe,
+        });
+      }
     }
 
     return new Response(bytes, {
@@ -175,11 +264,12 @@ Deno.serve(async (req) => {
         'content-disposition': `inline; filename="${nome}"`,
         'x-documento-id': registro?.id ?? '',
         'x-storage-path': erroUp ? '' : caminho,
-        'x-fontes': fontes ? 'marca' : 'padrao',
+        'x-fontes': usouMarca ? 'marca' : 'padrao',
+        'x-layout': layout,
       },
     });
   } catch (e) {
-    console.error('gerar-documento-pdf:', e);
-    return jsonErro('Não foi possível gerar o documento.', 500);
+    console.error('gerar-documento-pdf:', (e as Error).stack ?? e);
+    return jsonErro('Nao foi possivel gerar o documento.', 500, { detalhe: (e as Error).message?.slice(0, 200) });
   }
 });

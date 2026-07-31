@@ -215,7 +215,18 @@ export function fit(font, str, size, maxMm) {
 }
 
 // ===== Formatação pt-BR =====
-export const moeda = (n) => (Number(n) || 0).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
+// ARMADILHA 1: toLocaleString separa "R$" do número com ESPAÇO INQUEBRÁVEL
+// (U+00A0). As fontes embutidas são subconjuntos e não têm esse caractere — ele
+// saía como um retângulo vazio no meio do valor. Trocamos por espaço comum.
+//
+// ARMADILHA 2: a classe é `\s`, e não `[\u00A0...]`, de propósito. Sequências
+// `\uXXXX` sobrevivem ao esbuild e vão para o bundle da Edge Function, que é
+// transcrito no deploy — e escape unicode é justamente o que não atravessa esse
+// caminho intacto. `\s` já cobre U+00A0 e U+202F, e numa string de moeda o
+// único espaço existente é esse separador.
+export const moeda = (n) => (Number(n) || 0)
+  .toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })
+  .replace(/\s/g, ' ');
 export const numero = (n, dec = 0) => (Number(n) || 0).toLocaleString('pt-BR', { minimumFractionDigits: dec, maximumFractionDigits: dec });
 export const dataBr = (d) => {
   if (!d) return '';

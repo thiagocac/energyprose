@@ -14,12 +14,43 @@ Site e sistema da **Energy PRO**, num único domínio (`energyprose.netlify.app`
 
 ```
 cadastro no site  →  lead no funil (automático, gatilho)
-                  →  proposta (kWp e geração calculados de src/lib/solar.ts)
+                  →  proposta (a LINHA DE SERVIÇO decide o resto)
                   →  PDF (Edge Function, layout fixo em código)
                   →  envio por WhatsApp com link /p/<token>
                   →  cliente aceita ou recusa (decisão imutável)
-                  →  contrato
+                  →  contrato (só nas linhas que geram contrato)
 ```
+
+## Linhas de serviço
+
+A Energy PRO não vende só usina — o site a posiciona como *Soluções em
+Engenharia*, e o portfólio tem oito linhas. Duas coisas diferentes têm nome
+próprio, na tabela `linhas_servico`:
+
+- **linha** — o que se vende (usina, projeto elétrico, homologação, …)
+- **documento** — qual PDF sai: `usina` (a proposta rica) ou `servico` (a
+  Proposta Comercial enxuta, formato de CRM de mercado)
+- **contrato_tipo** — que contrato aquilo gera; `NULL` significa que a linha
+  fecha no aceite da proposta e não gera contrato nenhum
+
+| Linha | Documento | Contrato |
+|---|---|---|
+| Usina Solar Fotovoltaica | proposta de usina | fornecimento e instalação |
+| Projeto Elétrico de Baixa Tensão | Proposta Comercial | — |
+| Projeto de Microgeração Distribuída (MMGD) | Proposta Comercial | — |
+| Homologação junto à Concessionária | Proposta Comercial | — |
+| Extensão de Rede de Distribuição | Proposta Comercial | — |
+| Limpeza Técnica de Módulos Fotovoltaicos | Proposta Comercial | — |
+| Manutenção de Sistema Fotovoltaico | Proposta Comercial | manutenção |
+| Manutenção Elétrica Predial | Proposta Comercial | — |
+
+O vendedor escolhe **a linha**; `propostas.tipo`, a exigência do bloco do
+sistema e a existência do botão "Criar contrato" são consequência disso. Antes
+`tipo` era escolha livre e nada garantia que batesse com o que estava sendo
+vendido — dava para ter uma proposta de limpeza marcada como usina.
+
+Cadastrar uma linha nova é inserir uma linha na tabela: os dois PDFs e o front
+já se orientam por ela. O que **não** é automático é um layout novo.
 
 **Dois números são calculados e podem ser sobrescritos**: potência instalada e
 geração média. Assim que o vendedor digita um deles à mão, o cálculo automático
@@ -66,12 +97,27 @@ público; `08`–`15` acrescentaram o módulo comercial:
 | `13_integracao_cadastro_para_lead` | cadastro do site vira oportunidade no funil |
 | `14_fix_gatilho_lead_after_insert` | correção: o gatilho precisa ser `AFTER INSERT` (ver abaixo) |
 | `15_hardening_grants_funcoes` | fecha o `EXECUTE` que PUBLIC herdava (ver abaixo) |
+| `16_linhas_de_servico` | tabela `linhas_servico`, coluna `linha` em `propostas` e `servicos_catalogo`, `tipo` aceita `servico` |
+| `17_catalogo_por_linha` | catálogo reescrito com a nomenclatura técnica das oito linhas (22 itens) |
+| `18_contexto_de_documento_por_linha` | `render_document_context` passa a devolver a linha e o `detalhe` de cada item; `propostas.prazo_execucao` |
+| `19_salvar_e_converter_por_linha` | `save_proposta` deriva `tipo` da linha e apaga o bloco de sistema fora da usina; `converter_proposta_em_contrato` respeita `contrato_tipo` |
 
 ### Edge Functions
 
 | Função | O que faz |
 |---|---|
-| `gerar-documento-pdf` | Gera o PDF da proposta a partir de `render_document_context`, arquiva no bucket `documentos` e registra a trilha. Ver `supabase/functions/gerar-documento-pdf/LEIA-ME.md`. |
+| `gerar-documento-pdf` | Gera **três** documentos a partir de `render_document_context`, arquiva no bucket `documentos` e registra a trilha. Ver `supabase/functions/gerar-documento-pdf/LEIA-ME.md`. |
+
+Os três layouts, e quem escolhe:
+
+| Entrada | Layout | Arquivo-fonte |
+|---|---|---|
+| `tipo=proposta` + linha com `documento = 'usina'` | proposta rica de usina, 1 página | `src/layout-proposta.mjs` |
+| `tipo=proposta` + linha com `documento = 'servico'` | Proposta Comercial, 1–2 páginas | `src/layout-servico.mjs` |
+| `tipo=contrato` | contrato de usina **ou** de manutenção | `src/layout-contrato.mjs` |
+
+Quem escolhe é o banco, não o front: a função lê `ctx.linha.documento`. O
+cabeçalho `x-layout` da resposta diz qual saiu.
 
 A extensão **`pg_net`** está habilitada: foi o caminho para testar a Edge Function
 de dentro do banco (a rede do sandbox de desenvolvimento não alcança `supabase.co`)
@@ -81,8 +127,7 @@ tabela guarda o corpo das requisições, incluindo tokens.
 
 > **Pendência do repositório:** os arquivos `.sql` dessas migrations ainda não estão em
 > `supabase/migrations/`. Elas estão aplicadas em produção e registradas no histórico do
-> próprio Supabase; exportar para cá é o próximo passo, para o repositório voltar a ser
-> reconstrutível do zero.
+> próprio Supabase; exportar para cá é o próximo passo (ver Pendências).
 
 ### Duas armadilhas que já custaram caro
 
@@ -103,6 +148,23 @@ select proname, coalesce(array_to_string(proacl::text[], ' | '), 'SEM ACL → PU
 ```
 
 Uma ACL com `=X/postgres` significa que PUBLIC executa.
+
+**3. Escape unicode não sobrevive ao deploy da Edge Function.** O bundle
+`layout.js` é um arquivo de 64 KB numa linha só, e o deploy passa por
+transcrição — sequências `\uXXXX` não atravessam esse caminho intactas. Por
+isso o build usa `esbuild --charset=utf8` (acento vira caractere literal, não
+escape) e o código-fonte evita `\uXXXX` em regex: `moeda()` normaliza o espaço
+inquebrável com `/\s/g`, não com `/[\u00A0]/g`. Antes de qualquer deploy:
+
+```bash
+grep -c '\\u[0-9a-fA-F]\{4\}' supabase/functions/gerar-documento-pdf/layout.js   # tem que dar 0
+```
+
+**4. Fontes em subconjunto não têm todo caractere que o JavaScript produz.**
+`toLocaleString` separa "R$" do número com espaço inquebrável (U+00A0) e ele
+saía como um retângulo vazio no meio do valor. O mesmo vale para o marcador
+"•", que no contrato é **desenhado** como um retângulo âmbar em vez de escrito.
+Regra prática: no PDF só entra caractere do alfabeto latino comum.
 
 ### Uma falha silenciosa que o front precisa tratar
 
@@ -149,8 +211,34 @@ público. A paridade é responsabilidade dos testes — se mudar uma regra, mude
 
 ## Pendências conhecidas
 
-- Exportar as migrations `08`–`15` para `supabase/migrations/`.
-- Tela de Contratos + PDF do contrato (depende do texto jurídico).
+- **Redeployar a Edge Function.** É a única pendência que trava função nova.
+  O que está em produção hoje (versão 3) gera a proposta de usina e os dois
+  contratos; **não** conhece a Proposta Comercial de serviço. O código já está
+  aqui, testado e com o bundle gerado — falta subir:
+
+  ```bash
+  npm run build:ef
+  supabase functions deploy gerar-documento-pdf --project-ref mgcgmdiymqpxcsxhelhs
+  ```
+
+  Enquanto não subir, uma proposta de linha de serviço sai com o layout de
+  usina e é barrada na validação por falta do bloco do sistema.
+- Exportar as migrations `08`–`19` para `supabase/migrations/`, para o
+  repositório voltar a ser reconstrutível do zero:
+
+  ```bash
+  supabase link --project-ref mgcgmdiymqpxcsxhelhs
+  supabase db pull
+  ```
+- Revisão jurídica do texto do contrato antes do primeiro uso real.
+- **Decidir a assinatura da marca.** O site `energyprose.com.br` usa
+  *Soluções em Engenharia*; o logo embutido no PDF (`src/glifos.mjs`) diz
+  *Soluções em Energia Solar*. Com projeto elétrico, extensão de rede e
+  manutenção predial no portfólio, a do site descreve melhor a empresa — mas
+  trocar exige reextrair os contornos vetoriais da tagline.
+- Preencher CNPJ, endereço e e-mail comercial em Configurações: hoje estão em
+  branco e o contrato imprime "—" no lugar do CNPJ da CONTRATADA.
+- Tela própria de Contratos (hoje o contrato é criado e emitido pela tela de Propostas).
 - Servir as fontes: elas já estão em `publico/fontes/`, mas só passam a valer
   depois do primeiro deploy. Até lá o PDF sai com as fontes padrão — o cabeçalho
   `x-fontes` da resposta diz qual foi usada, e a tela avisa.

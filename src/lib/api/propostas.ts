@@ -11,7 +11,7 @@ export const ROTULO_STATUS: Record<StatusProposta, string> = {
 };
 
 export type PropostaLinha = {
-  id: string; numero: string | null; revision: number; tipo: string;
+  id: string; numero: string | null; revision: number; tipo: string; linha: string;
   titulo: string | null; validade: string | null; status: StatusProposta;
   valor_total: number; cadastro_id: string | null; contrato_id: string | null;
   followup_at: string | null; sent_at: string | null; pdf_path: string | null;
@@ -36,8 +36,10 @@ export type Sistema = {
 
 export type PropostaCompleta = {
   id: string; numero: string | null; revision: number; tipo: string;
+  linha: string;
   cadastro_id: string | null; titulo: string | null; validade: string | null;
-  status: StatusProposta; condicao_pagamento: string | null; observacoes: string | null;
+  status: StatusProposta; condicao_pagamento: string | null;
+  prazo_execucao: string | null; observacoes: string | null;
   valor_total: number;
   recipient_name: string | null; recipient_email: string | null; recipient_whatsapp: string | null;
   itens: ItemProposta[];
@@ -45,7 +47,7 @@ export type PropostaCompleta = {
 };
 
 const SELECAO = `
-  id, numero, revision, tipo, titulo, validade, status, valor_total, cadastro_id,
+  id, numero, revision, tipo, linha, titulo, validade, status, valor_total, cadastro_id,
   contrato_id, followup_at, sent_at, pdf_path,
   cadastros ( nome, cidade ),
   proposta_sistema ( potencia_instalada_kwp, modulo_qtd )`;
@@ -61,6 +63,7 @@ export async function listarPropostas(): Promise<PropostaLinha[]> {
     return {
       id: String(linha.id), numero: (linha.numero as string) ?? null,
       revision: Number(linha.revision) || 0, tipo: String(linha.tipo ?? 'usina'),
+      linha: String(linha.linha ?? 'usina_fotovoltaica'),
       titulo: (linha.titulo as string) ?? null, validade: (linha.validade as string) ?? null,
       status: (linha.status as StatusProposta) ?? 'rascunho',
       valor_total: Number(linha.valor_total) || 0,
@@ -89,10 +92,12 @@ export async function obterProposta(id: string): Promise<PropostaCompleta> {
   const p = cab.data as Record<string, unknown>;
   return {
     id: String(p.id), numero: (p.numero as string) ?? null, revision: Number(p.revision) || 0,
-    tipo: String(p.tipo ?? 'usina'), cadastro_id: (p.cadastro_id as string) ?? null,
+    tipo: String(p.tipo ?? 'usina'), linha: String(p.linha ?? 'usina_fotovoltaica'),
+    cadastro_id: (p.cadastro_id as string) ?? null,
     titulo: (p.titulo as string) ?? null, validade: (p.validade as string) ?? null,
     status: (p.status as StatusProposta) ?? 'rascunho',
     condicao_pagamento: (p.condicao_pagamento as string) ?? null,
+    prazo_execucao: (p.prazo_execucao as string) ?? null,
     observacoes: (p.observacoes as string) ?? null,
     valor_total: Number(p.valor_total) || 0,
     recipient_name: (p.recipient_name as string) ?? null,
