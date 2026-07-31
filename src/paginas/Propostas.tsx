@@ -51,6 +51,12 @@ export function Propostas() {
   const qc = useQueryClient();
   const [erro, setErro] = useState('');
   const [aviso, setAviso] = useState('');
+  // O que sobrou do último envio. O link de aceite só existia dentro da função
+  // que enviava: se o pop-up fosse bloqueado, não havia como recuperá-lo pela
+  // interface — o único caminho era reenviar, que emite outro token.
+  const [envio, setEnvio] = useState<null | {
+    numero: string; link: string; whats: string; faltaPdf: string; abriu: boolean;
+  }>(null);
   const [form, setForm] = useState<Form | null>(null);
   const [itens, setItens] = useState<ItemProposta[]>([]);
   const [ocupado, setOcupado] = useState<string | null>(null);
@@ -253,7 +259,27 @@ export function Propostas() {
   }
 
   async function enviar(p: PropostaLinha) {
-    setOcupado(`enviar:${p.id}`); setErro(''); setAviso('');
+    // Reenviar não é enviar de novo: o link que o cliente tem no celular morre,
+    // e o registro de que ele abriu vai junto. O botão tinha o mesmo rótulo do
+    // primeiro envio e disparava no primeiro toque.
+    const reenvio = p.status === 'enviada';
+    if (reenvio && !confirm(
+      `Reenviar a proposta ${p.numero ?? ''}?\n\n`
+      + 'O link que o cliente já recebeu deixa de funcionar, e o registro de '
+      + 'que ele abriu é apagado.',
+    )) return;
+
+    // A aba nasce AQUI, no clique. Depois vêm três idas ao servidor — buscar a
+    // proposta, congelar o envio, gerar o PDF — e quando elas terminam o
+    // navegador já não aceita `window.open`, porque o gesto do usuário
+    // expirou. Era assim que a proposta ficava marcada como enviada, o token
+    // congelado, a tela dizendo "o WhatsApp abriu" — e o cliente sem nada.
+    //
+    // Ainda pode ser barrada: no reenvio, se a pessoa demorar a responder a
+    // confirmação, a permissão do clique vence antes daqui. Por isso o recibo
+    // abaixo mostra o link e um botão de abrir — sem depender de pop-up nenhum.
+    const aba = abrirAbaDiferida('Preparando o envio…');
+    setOcupado(`enviar:${p.id}`); setErro(''); setAviso(''); setEnvio(null);
     try {
       const dados = await obterProposta(p.id);
       // O número do cadastro é o mesmo número. Reclamar de um dado que o
@@ -269,26 +295,39 @@ export function Propostas() {
       // congelada — assim o arquivo corresponde exatamente ao que o cliente vê
       // no link. E é gerado agora, e não sob demanda, porque o link de download
       // só funciona com o arquivo já arquivado no bucket.
-      let temPdf = true;
+      let faltaPdf = '';
       try {
         await gerarDocumentoPdf('proposta', p.id);
-      } catch {
-        // Falha ao gerar não pode impedir o envio: a proposta já está enviada e
-        // o cliente precisa do link de aceite. O de download fica de fora.
-        temPdf = false;
+      } catch (e) {
+        // A falha não impede o envio — a proposta já está congelada e o cliente
+        // precisa do link de aceite. Mas a MENSAGEM não pode ser jogada fora:
+        // ela costuma dizer exatamente o que falta preencher em Configurações,
+        // e antes o vendedor lia só "não pôde ser gerado".
+        faltaPdf = (e as Error).message;
       }
 
       const base = `${window.location.origin}/p/${r.token}`;
       const msg = `Olá, ${dados.recipient_name ?? ''}! Segue a sua proposta da Energy PRO `
         + `(${p.numero}), no valor de ${moeda(p.valor_total)}.\n\n`
         + `Ver os detalhes e responder: ${base}`
-        + (temPdf ? `\n\nBaixar a proposta em PDF: ${base}/pdf` : '');
-      window.open(linkWhatsapp(fone, msg), '_blank');
-      setAviso(temPdf
-        ? 'Proposta enviada: o WhatsApp abriu com o link de aceite e o de download do PDF.'
-        : 'Proposta enviada, mas o PDF não pôde ser gerado — a mensagem foi sem o link de download.');
+        + (faltaPdf ? '' : `\n\nBaixar a proposta em PDF: ${base}/pdf`);
+      const whats = linkWhatsapp(fone, msg);
+      setEnvio({ numero: p.numero ?? '', link: base, whats, faltaPdf, abriu: aba.irPara(whats) });
       void qc.invalidateQueries({ queryKey: ['propostas'] });
-    } catch (e) { setErro((e as Error).message); } finally { setOcupado(null); }
+    } catch (e) {
+      aba.falhar((e as Error).message);
+      setErro((e as Error).message);
+    } finally { setOcupado(null); }
+  }
+
+  /** Copiar sem depender de o navegador ter permissão — se não der, avisa. */
+  async function copiar(texto: string) {
+    try {
+      await navigator.clipboard.writeText(texto);
+      setAviso('Link copiado.');
+    } catch {
+      setErro('O navegador não deixou copiar. Selecione o link e copie à mão.');
+    }
   }
 
   /**
@@ -308,7 +347,7 @@ export function Propostas() {
   }
 
   async function acao(chave: string, fn: () => Promise<unknown>, msg: string) {
-    setOcupado(chave); setErro(''); setAviso('');
+    setOcupado(chave); setErro(''); setAviso(''); setEnvio(null);
     try { await fn(); setAviso(msg); void qc.invalidateQueries({ queryKey: ['propostas'] }); }
     catch (e) { setErro((e as Error).message); } finally { setOcupado(null); }
   }
@@ -323,8 +362,48 @@ export function Propostas() {
         acao={escrever ? <button className="botao" onClick={novo}>Nova proposta</button> : undefined}
       />
 
-      {erro ? <div className="aviso erro" style={{ marginBottom: 14 }}>{erro}</div> : null}
+      {/* Com o painel aberto o erro é de validação e aparece lá dentro, junto do
+          botão. Aqui em cima ele ficaria atrás do véu escuro, sem ninguém ver. */}
+      {erro && !form ? <div className="aviso erro" style={{ marginBottom: 14 }}>{erro}</div> : null}
       {aviso ? <div className="aviso bom" style={{ marginBottom: 14 }}>{aviso}</div> : null}
+
+      {/* O que sobrou do envio. Fica na tela até a pessoa fechar, porque é a
+          única cópia do link de aceite que existe fora da mensagem enviada. */}
+      {/* Verde só quando deu tudo certo mesmo: enviar sem PDF, ou com o pop-up
+          barrado, é caso de olhar — não de aviso comemorativo. */}
+      {envio ? (
+        <div className={`aviso ${envio.abriu && !envio.faltaPdf ? 'bom' : 'info'} envio`}
+             style={{ marginBottom: 14 }}>
+          <div className="envio-topo">
+            <b>
+              {envio.abriu
+                ? `Proposta ${envio.numero} pronta — o WhatsApp abriu em outra aba.`
+                : `Proposta ${envio.numero} pronta, mas o navegador bloqueou a janela do WhatsApp.`}
+            </b>
+            <button className="botao discreto" onClick={() => setEnvio(null)} aria-label="Fechar o aviso de envio">
+              Fechar
+            </button>
+          </div>
+          {!envio.abriu ? (
+            <p style={{ margin: '4px 0 8px' }}>
+              Use o botão abaixo para abrir, ou copie o link e mande você mesmo.
+            </p>
+          ) : null}
+          {envio.faltaPdf ? (
+            <p style={{ margin: '4px 0 8px' }}>
+              <b>Foi sem o PDF anexo:</b> {envio.faltaPdf}{' '}
+              Corrija e clique em PDF nesta linha — o link de aceite continua valendo.
+            </p>
+          ) : null}
+          <div className="envio-link">
+            <code>{envio.link}</code>
+            <button className="botao discreto" onClick={() => void copiar(envio.link)}>Copiar link</button>
+            <a className="botao discreto" href={envio.whats} target="_blank" rel="noopener">
+              {envio.abriu ? 'Abrir o WhatsApp de novo' : 'Abrir o WhatsApp'}
+            </a>
+          </div>
+        </div>
+      ) : null}
 
       {resumo.aguardando ? (
         <div className="kpis">
@@ -411,7 +490,8 @@ export function Propostas() {
                         </button>
                         {escrever && ['rascunho', 'enviada'].includes(p.status)
                           ? <button className="botao discreto" disabled={!!ocupado} onClick={() => void enviar(p)}>
-                              {ocupado === `enviar:${p.id}` ? 'Preparando…' : 'Enviar'}
+                              {ocupado === `enviar:${p.id}` ? 'Preparando…'
+                                : p.status === 'enviada' ? 'Reenviar' : 'Enviar'}
                             </button> : null}
                         {escrever
                           ? <button className="botao discreto" disabled={!!ocupado}
@@ -428,9 +508,16 @@ export function Propostas() {
                               onClick={() => void pdf(p.contrato_id as string, 'contrato')}>
                               {ocupado === `pdf:${p.contrato_id}` ? 'Gerando…' : 'Contrato (PDF)'}
                             </button> : null}
+                        {/* Arquivar grava `deleted_at` e o rascunho some da lista
+                            para sempre: não existe filtro de arquivados nem
+                            lixeira para desfazer. Merece a pergunta. */}
                         {escrever && p.status === 'rascunho'
                           ? <button className="botao discreto" style={{ color: 'var(--ruim)' }} disabled={!!ocupado}
-                              onClick={() => void acao(`arq:${p.id}`, () => arquivarProposta(p.id), 'Rascunho arquivado.')}>
+                              onClick={() => {
+                                if (!confirm(`Arquivar o rascunho de ${p.cliente ?? 'cliente'}?\n\n`
+                                  + 'Ele sai da lista e não há como trazer de volta pela tela.')) return;
+                                void acao(`arq:${p.id}`, () => arquivarProposta(p.id), 'Rascunho arquivado.');
+                              }}>
                               Arquivar
                             </button> : null}
                       </div>
@@ -658,6 +745,10 @@ export function Propostas() {
             </div>
 
             <footer>
+              {/* "Escolha o cliente." e "Inclua ao menos um item" nasciam na
+                  página, atrás deste painel. O botão voltava de "Salvando…"
+                  para "Salvar proposta" e nada mais acontecia. */}
+              {erro ? <div className="aviso erro">{erro}</div> : null}
               <button className="botao secundario" onClick={() => setForm(null)}>Cancelar</button>
               <button className="botao" disabled={salvar.isPending} onClick={() => salvar.mutate()}>
                 {salvar.isPending ? 'Salvando…' : 'Salvar proposta'}

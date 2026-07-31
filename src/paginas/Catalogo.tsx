@@ -85,7 +85,9 @@ export function Catalogo() {
         </button>
       </div>
 
-      {erro ? <div className="aviso erro" style={{ marginBottom: 14 }}>{erro}</div> : null}
+      {/* Com painel aberto o erro é de validação e vai para o rodapé dele: aqui
+          em cima ficaria atrás do véu escuro. */}
+      {erro && !equip && !servico ? <div className="aviso erro" style={{ marginBottom: 14 }}>{erro}</div> : null}
       {aviso ? <div className="aviso bom" style={{ marginBottom: 14 }}>{aviso}</div> : null}
 
       {aba === 'equipamentos' ? (
@@ -226,6 +228,8 @@ export function Catalogo() {
               </div>
             </div>
             <footer>
+              {/* "Módulo precisa da potência em Wp." nascia atrás deste painel. */}
+              {erro ? <div className="aviso erro">{erro}</div> : null}
               <button className="botao secundario" onClick={() => setEquip(null)}>Cancelar</button>
               <button className="botao" disabled={gravarEquip.isPending} onClick={() => gravarEquip.mutate()}>
                 {gravarEquip.isPending ? 'Salvando…' : 'Salvar'}
@@ -307,6 +311,7 @@ export function Catalogo() {
               </div>
             </div>
             <footer>
+              {erro ? <div className="aviso erro">{erro}</div> : null}
               <button className="botao secundario" onClick={() => setServico(null)}>Cancelar</button>
               <button className="botao" disabled={gravarServico.isPending} onClick={() => gravarServico.mutate()}>
                 {gravarServico.isPending ? 'Salvando…' : 'Salvar'}

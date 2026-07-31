@@ -10,7 +10,29 @@ import { PropostaPublica } from '../src/paginas/PropostaPublica';
 import '../src/estilos.css';
 
 const qc = new QueryClient({ defaultOptions: { queries: { retry: false, refetchOnWindowFocus: false } } });
-const tela = new URLSearchParams(location.search).get('t') ?? 'propostas';
+const params = new URLSearchParams(location.search);
+const tela = params.get('t') ?? 'propostas';
+
+// A Edge Function do PDF é chamada por `fetch` direto, sem passar pelo cliente
+// do Supabase — então ela é dublada aqui. `?pdf=falha` devolve o erro com a
+// lista de campos, que é o caminho que precisava de foto.
+const fetchReal = window.fetch.bind(window);
+window.fetch = async (entrada: RequestInfo | URL, init?: RequestInit) => {
+  const url = String(entrada instanceof Request ? entrada.url : entrada);
+  if (url.includes('/functions/v1/gerar-documento-pdf')) {
+    if (params.get('pdf') === 'falha') {
+      return new Response(
+        JSON.stringify({ erro: 'A empresa está sem dados obrigatórios.', campos: ['razão social', 'CNPJ'] }),
+        { status: 400, headers: { 'content-type': 'application/json' } },
+      );
+    }
+    return new Response(new Blob(['%PDF-1.7 previa'], { type: 'application/pdf' }), {
+      status: 200,
+      headers: { 'content-disposition': 'attachment; filename="previa.pdf"', 'x-fontes': 'marca' },
+    });
+  }
+  return fetchReal(entrada, init);
+};
 
 const PAGINAS: Record<string, () => JSX.Element> = {
   funil: Funil, propostas: Propostas, catalogo: Catalogo,

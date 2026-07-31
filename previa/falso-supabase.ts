@@ -36,6 +36,9 @@ const RPCS: Record<string, unknown> = {
   crm_snapshot: FUNIL,
   proposta_publica_ler: PUBLICA,
   proposta_publica_decidir: { ok: true },
+  preparar_envio_proposta: { token: 'a1b2c3d4e5f60718293a4b5c6d7e8f90', dias: 30 },
+  duplicar_proposta: 'p9',
+  converter_proposta_em_contrato: 'ct1',
 };
 
 export const sb = {
@@ -43,7 +46,7 @@ export const sb = {
   rpc: (nome: string) => Promise.resolve({ data: RPCS[nome] ?? null, error: null }),
   storage: { from: () => ({ download: async () => ({ data: null, error: null }) }) },
   auth: {
-    getSession: async () => ({ data: { session: null } }),
+    getSession: async () => ({ data: { session: { access_token: 'previa' } } }),
     onAuthStateChange: () => ({ data: { subscription: { unsubscribe() {} } } }),
     signOut: async () => ({ error: null }),
     // Na prévia a senha "certa" é `previa-atual`: assim dá para fotografar

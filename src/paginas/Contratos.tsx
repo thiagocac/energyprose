@@ -185,7 +185,9 @@ export function Contratos() {
         acao={escrever ? <button className="botao" onClick={novo}>Novo contrato</button> : undefined}
       />
 
-      {erro ? <div className="aviso erro">{erro}</div> : null}
+      {/* Com o painel aberto o erro é de validação e vai para o rodapé dele —
+          aqui em cima ficaria atrás do véu escuro, sem ninguém ler. */}
+      {erro && !form ? <div className="aviso erro">{erro}</div> : null}
       {aviso ? <div className="aviso bom">{aviso}</div> : null}
 
       <div className="kpis">
@@ -311,6 +313,9 @@ export function Contratos() {
           titulo={form.id ? `Contrato ${form.numero ?? ''}` : 'Novo contrato'}
           aoFechar={() => setForm(null)}
           rodape={<>
+            {/* "Informe o valor do contrato." e "A vigência termina antes de
+                começar." eram desenhadas na página, atrás deste painel. */}
+            {erro ? <div className="aviso erro">{erro}</div> : null}
             <button className="botao secundario" onClick={() => setForm(null)}>Cancelar</button>
             <button className="botao" disabled={salvar.isPending} onClick={() => salvar.mutate()}>
               {salvar.isPending ? 'Salvando…' : 'Salvar contrato'}

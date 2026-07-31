@@ -73,6 +73,16 @@ export function abrirAbaDiferida(mensagem = 'Gerando o PDF…') {
       }
       setTimeout(() => URL.revokeObjectURL(url), 60_000);
     },
+    /**
+     * Manda a aba para outro endereço — o WhatsApp, por exemplo. Devolve
+     * `false` quando o pop-up foi bloqueado, para quem chamou poder oferecer
+     * o link na própria tela em vez de mentir que abriu.
+     */
+    irPara(url: string) {
+      if (!aba) return false;
+      aba.location.href = url;
+      return true;
+    },
     falhar(msg: string) {
       if (aba) aba.document.body.textContent = msg;
     },

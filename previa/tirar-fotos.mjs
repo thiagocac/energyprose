@@ -16,16 +16,21 @@ mkdirSync(SAIDA, { recursive: true });
 
 const navegador = await chromium.launch();
 
-async function foto(nome, tela, largura, altura, antes) {
+async function foto(nome, tela, largura, altura, antes, opcoes = {}) {
   const ctx = await navegador.newContext({
     viewport: { width: largura, height: altura },
     deviceScaleFactor: 2, locale: 'pt-BR',
   });
   const pag = await ctx.newPage();
+  // O WhatsApp e o PDF abrem em aba nova; sem rede, elas só atrapalhariam.
+  await ctx.route('**/wa.me/**', (r) => r.abort());
+  if (opcoes.popupBloqueado) {
+    await pag.addInitScript(() => { window.open = () => null; });
+  }
   const erros = [];
   pag.on('console', (m) => { if (m.type() === 'error') erros.push(m.text()); });
   pag.on('pageerror', (e) => erros.push('pageerror: ' + e.message));
-  await pag.goto(`${BASE}/?t=${tela}`, { waitUntil: 'networkidle' });
+  await pag.goto(`${BASE}/?t=${tela}${opcoes.extra ?? ''}`, { waitUntil: 'networkidle' });
   await pag.waitForTimeout(400);
   if (antes) await antes(pag);
   await pag.screenshot({ path: `${SAIDA}${nome}.png`, fullPage: true });
@@ -41,6 +46,30 @@ await foto('propostas-painel', 'propostas', 1366, 1000, async (pag) => {
   await pag.locator('.painel select').first().selectOption({ index: 1 });
   await pag.waitForTimeout(300);
 });
+// Envio: recibo com link, pop-up bloqueado, e envio sem PDF.
+const enviarPrimeira = async (pag) => {
+  await pag.getByRole('button', { name: /^Enviar$/ }).first().click();
+  await pag.waitForTimeout(900);
+};
+await foto('envio-recibo', 'propostas', 1366, 900, enviarPrimeira);
+await foto('envio-popup-bloqueado', 'propostas', 1366, 900, enviarPrimeira, { popupBloqueado: true });
+await foto('envio-sem-pdf', 'propostas', 1366, 900, enviarPrimeira, { extra: '&pdf=falha' });
+await foto('envio-recibo-celular', 'propostas', 390, 780, enviarPrimeira, { popupBloqueado: true });
+
+// Erro de validação DENTRO do painel — era o que ficava atrás do véu escuro.
+await foto('erro-no-painel', 'propostas', 1366, 900, async (pag) => {
+  await pag.getByRole('button', { name: 'Nova proposta' }).click();
+  await pag.waitForTimeout(250);
+  await pag.getByRole('button', { name: 'Salvar proposta' }).click();
+  await pag.waitForTimeout(350);
+});
+await foto('erro-no-painel-celular', 'propostas', 390, 780, async (pag) => {
+  await pag.getByRole('button', { name: 'Nova proposta' }).click();
+  await pag.waitForTimeout(250);
+  await pag.getByRole('button', { name: 'Salvar proposta' }).click();
+  await pag.waitForTimeout(350);
+});
+
 // Trocar senha: aberto, com crítica, e o erro de senha atual errada.
 const abrirSenha = async (pag) => {
   await pag.getByRole('button', { name: 'Senha' }).click();
