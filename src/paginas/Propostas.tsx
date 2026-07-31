@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Cabecalho } from '../componentes/Layout';
+import { BarraFiltro, casa } from '../componentes/Filtros';
 import { useAuth } from '../lib/auth';
 import { moeda, numero, dataBr, linkWhatsapp, soDigitos } from '../lib/formato';
 import { kwp, geracaoMensal, sugerirModulos, razaoCcCa } from '../lib/solar';
@@ -48,6 +49,9 @@ export function Propostas() {
   const [form, setForm] = useState<Form | null>(null);
   const [itens, setItens] = useState<ItemProposta[]>([]);
   const [ocupado, setOcupado] = useState<string | null>(null);
+  const [busca, setBusca] = useState('');
+  const [fStatus, setFStatus] = useState('');
+  const [fLinha, setFLinha] = useState('');
 
   const propostas = useQuery({ queryKey: ['propostas'], queryFn: listarPropostas });
   const servicos = useQuery({ queryKey: ['servicos'], queryFn: () => listarServicos(true) });
@@ -85,6 +89,18 @@ export function Propostas() {
     () => itens.reduce((s, i) => s + i.quantidade * i.preco_unitario * (1 - i.desconto_pct / 100), 0),
     [itens],
   );
+
+  // A lista filtrada mora aqui, e não numa consulta ao banco: são dezenas de
+  // linhas, não milhares. Filtrar no cliente responde a cada tecla sem ida ao
+  // servidor. Se um dia passar de alguns milhares, vira consulta paginada.
+  const listaFiltrada = useMemo(() => {
+    const todas = propostas.data ?? [];
+    return todas.filter((p) => (
+      (!fStatus || p.status === fStatus)
+      && (!fLinha || p.linha === fLinha)
+      && casa(busca, p.numero, p.cliente, p.cidade, p.titulo)
+    ));
+  }, [propostas.data, busca, fStatus, fLinha]);
 
   // ===== Cálculo automático de kWp e geração =====
   // Só recalcula enquanto o usuário não digitou o valor à mão: o vendedor às
@@ -262,6 +278,30 @@ export function Propostas() {
             </p>
           </div>
         ) : (
+          <>
+          <BarraFiltro
+            busca={busca} aoBuscar={setBusca}
+            placeholder="Buscar por número, cliente, cidade ou título"
+            mostrando={listaFiltrada.length} total={propostas.data.length}
+            aoLimpar={() => { setBusca(''); setFStatus(''); setFLinha(''); }}
+            filtros={<>
+              <select value={fStatus} onChange={(e) => setFStatus(e.target.value)} aria-label="Filtrar por status">
+                <option value="">Todos os status</option>
+                {(Object.keys(ROTULO_STATUS) as StatusProposta[]).map((k) => (
+                  <option key={k} value={k}>{ROTULO_STATUS[k]}</option>
+                ))}
+              </select>
+              <select value={fLinha} onChange={(e) => setFLinha(e.target.value)} aria-label="Filtrar por linha">
+                <option value="">Todas as linhas</option>
+                {(linhas.data ?? []).map((l) => <option key={l.codigo} value={l.codigo}>{l.nome}</option>)}
+              </select>
+            </>}
+          />
+          {!listaFiltrada.length ? (
+            <div className="cartao" style={{ padding: 24, textAlign: 'center' }}>
+              <p className="sub" style={{ margin: 0 }}>Nenhuma proposta com esses filtros.</p>
+            </div>
+          ) : (
           <div className="cartao" style={{ overflowX: 'auto' }}>
             <table className="tabela">
               <thead>
@@ -271,7 +311,7 @@ export function Propostas() {
                 </tr>
               </thead>
               <tbody>
-                {propostas.data.map((p) => (
+                {listaFiltrada.map((p) => (
                   <tr key={p.id}>
                     <td>
                       <b>{p.numero ?? '—'}</b>
@@ -330,6 +370,8 @@ export function Propostas() {
               </tbody>
             </table>
           </div>
+          )}
+          </>
         )}
 
       {/* ===== Formulário ===== */}

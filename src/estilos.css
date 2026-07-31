@@ -223,3 +223,36 @@ fieldset[disabled] input, fieldset[disabled] select, fieldset[disabled] textarea
   .lista-cab { display: none; }
   .lista-linha { grid-template-columns: 1fr !important; padding: 10px; border: 1px solid var(--linha); border-radius: 10px; }
 }
+
+/* ===== Barra de busca e filtros das listas =============================== */
+.barra-filtro {
+  display: flex; align-items: center; gap: 10px; flex-wrap: wrap;
+  margin-bottom: 14px;
+}
+.barra-filtro .busca { position: relative; flex: 1 1 260px; min-width: 200px; }
+.barra-filtro .busca svg {
+  position: absolute; left: 11px; top: 50%; transform: translateY(-50%);
+  width: 15px; height: 15px; fill: none; stroke: var(--suave);
+  stroke-width: 2; stroke-linecap: round; pointer-events: none;
+}
+.barra-filtro .busca input {
+  width: 100%; padding: 9px 12px 9px 33px;
+  border: 1px solid var(--linha); border-radius: 9px;
+  background: var(--branco); color: var(--tinta);
+  font: inherit; font-size: 13.5px;
+}
+.barra-filtro .busca input::placeholder { color: var(--suave); }
+.barra-filtro .busca input:focus {
+  outline: 2px solid var(--quente-medio); outline-offset: 1px; border-color: transparent;
+}
+/* O X nativo do type=search some no Safari e aparece torto no Chrome; o botão
+   "Limpar" da barra faz o mesmo papel, visível nos dois. */
+.barra-filtro .busca input::-webkit-search-cancel-button { display: none; }
+.barra-filtro select {
+  padding: 9px 11px; border: 1px solid var(--linha); border-radius: 9px;
+  background: var(--branco); color: var(--tinta); font: inherit; font-size: 13.5px;
+}
+.barra-filtro select:focus { outline: 2px solid var(--quente-medio); outline-offset: 1px; }
+.barra-filtro .contagem {
+  font-size: 12.5px; color: var(--suave); margin-left: auto; white-space: nowrap;
+}

@@ -102,6 +102,8 @@ público; `08`–`15` acrescentaram o módulo comercial:
 | `18_contexto_de_documento_por_linha` | `render_document_context` passa a devolver a linha e o `detalhe` de cada item; `propostas.prazo_execucao` |
 | `19_salvar_e_converter_por_linha` | `save_proposta` deriva `tipo` da linha e apaga o bloco de sistema fora da usina; `converter_proposta_em_contrato` respeita `contrato_tipo` |
 | `20_save_contrato` | `save_contrato` e `arquivar_contrato` — abre a edição de recorrência, visitas e vigência, e o contrato avulso sem proposta |
+| `21_expiracao_automatica` | `pg_cron` + job diário; `expirar_propostas()` passa a registrar evento |
+| `22_fecha_anon_nas_funcoes_novas` | fecha o grant EXPLÍCITO que o Supabase dá a `anon` em toda função nova (ver armadilha 3) |
 
 ### Edge Functions
 
@@ -150,7 +152,41 @@ select proname, coalesce(array_to_string(proacl::text[], ' | '), 'SEM ACL → PU
 
 Uma ACL com `=X/postgres` significa que PUBLIC executa.
 
-**3. Escape unicode não sobrevive ao deploy da Edge Function.** O bundle
+**3. `revoke from public` NÃO fecha o `anon` no Supabase.** A armadilha 2 conta
+só metade da história, e a outra metade custou uma regressão real na migration
+20. O Supabase mantém
+
+```sql
+alter default privileges in schema public grant all on functions
+  to anon, authenticated, service_role;
+```
+
+então toda função **nova** nasce com um grant EXPLÍCITO para `anon`, que
+`revoke ... from public` não encosta. O `save_contrato` ficou aberto ao mundo
+mesmo com o revoke escrito na migration. `save_proposta` escapou por acidente:
+a 19 usou `CREATE OR REPLACE` sobre função que já existia, e o replace preserva
+a ACL — os default privileges só entram num CREATE de verdade.
+
+A 22 fecha o que havia e desliga o default para o futuro. A conferência que
+importa não é ler a ACL, é perguntar ao Postgres:
+
+```sql
+select p.proname, has_function_privilege('anon', p.oid, 'execute') as anon
+  from pg_proc p join pg_namespace n on n.oid = p.pronamespace
+ where n.nspname = 'public' and p.prokind = 'f'
+   and has_function_privilege('anon', p.oid, 'execute');
+```
+
+Só quatro nomes podem aparecer: `cadastro_publico`, `cadastro_publico_finalizar`,
+`proposta_publica_ler`, `proposta_publica_decidir`. Qualquer outro é regressão.
+
+> O sweep também tirou `EXECUTE` de `authenticated` nas duas funções de gatilho
+> (`criar_lead_de_cadastro`, `set_numero_comercial`). Isso é inofensivo e foi
+> testado: o Postgres não reconfere esse privilégio na hora de disparar um
+> gatilho. Um cadastro inserido como `authenticated` continua gerando lead, e a
+> proposta continua saindo numerada.
+
+**4. Escape unicode não sobrevive ao deploy da Edge Function.** O bundle
 `layout.js` é um arquivo de 64 KB numa linha só, e o deploy passa por
 transcrição — sequências `\uXXXX` não atravessam esse caminho intactas. Por
 isso o build usa `esbuild --charset=utf8` (acento vira caractere literal, não
@@ -161,7 +197,7 @@ inquebrável com `/\s/g`, não com `/[\u00A0]/g`. Antes de qualquer deploy:
 grep -c '\\u[0-9a-fA-F]\{4\}' supabase/functions/gerar-documento-pdf/layout.js   # tem que dar 0
 ```
 
-**4. Fontes em subconjunto não têm todo caractere que o JavaScript produz.**
+**5. Fontes em subconjunto não têm todo caractere que o JavaScript produz.**
 `toLocaleString` separa "R$" do número com espaço inquebrável (U+00A0) e ele
 saía como um retângulo vazio no meio do valor. O mesmo vale para o marcador
 "•", que no contrato é **desenhado** como um retângulo âmbar em vez de escrito.
@@ -192,6 +228,21 @@ hash SHA-256, com validade).
 Por isso o Security Advisor mostra avisos `security_definer_function_executable` — todos
 **intencionais**. A linha de base hoje é ~21 avisos (as RPCs da equipe + as 4 públicas +
 `auth_leaked_password_protection`, que é ajuste de painel). Alerta de outro tipo é regressão.
+
+## Rotinas automáticas
+
+| Job | Quando | O que faz |
+|---|---|---|
+| `expirar-propostas` | todo dia às 03:05 UTC (00:05 de Brasília) | marca como `expirada` toda proposta `enviada` com validade vencida, e registra o evento com `actor_id` nulo — não foi pessoa nenhuma, foi o relógio |
+
+O `cron` do Postgres roda em UTC. O horário é o começo do dia brasileiro de
+propósito: a proposta que venceu ontem já aparece expirada quando a equipe abre
+o sistema, e não no meio do expediente. Para conferir:
+
+```sql
+select jobname, schedule, active from cron.job;
+select * from cron.job_run_details order by start_time desc limit 5;
+```
 
 ## Navegação entre as duas aplicações
 
@@ -250,8 +301,6 @@ público. A paridade é responsabilidade dos testes — se mudar uma regra, mude
   supabase db pull
   ```
 - Revisão jurídica do texto do contrato antes do primeiro uso real.
-- Nada expira sozinho: `expirar_propostas()` existe, mas `pg_cron` não está
-  habilitado e ninguém a chama. Proposta vencida continua "enviada".
 - Envio só por WhatsApp — não há e-mail nem registro de "o cliente abriu o link".
 - **Decidir a assinatura da marca.** O site `energyprose.com.br` usa
   *Soluções em Engenharia*; o logo embutido no PDF (`src/glifos.mjs`) diz

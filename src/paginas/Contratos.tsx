@@ -1,6 +1,7 @@
 import { useMemo, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Cabecalho } from '../componentes/Layout';
+import { BarraFiltro, casa } from '../componentes/Filtros';
 import { useAuth } from '../lib/auth';
 import { moeda, dataBr } from '../lib/formato';
 import { gerarDocumentoPdf, abrirAbaDiferida } from '../lib/api/documentos';
@@ -44,6 +45,9 @@ export function Contratos() {
   const [aviso, setAviso] = useState('');
   const [form, setForm] = useState<Form | null>(null);
   const [ocupado, setOcupado] = useState<string | null>(null);
+  const [busca, setBusca] = useState('');
+  const [fStatus, setFStatus] = useState('');
+  const [fTipo, setFTipo] = useState('');
 
   const contratos = useQuery({ queryKey: ['contratos'], queryFn: listarContratos });
   const cadastros = useQuery({ queryKey: ['cadastros-ref'], queryFn: listarCadastrosRef });
@@ -65,6 +69,15 @@ export function Contratos() {
       carteira: ativos.reduce((s, c) => s + c.valor_total, 0),
     };
   }, [contratos.data]);
+
+  const listaFiltrada = useMemo(() => {
+    const todos = contratos.data ?? [];
+    return todos.filter((c) => (
+      (!fStatus || c.status === fStatus)
+      && (!fTipo || c.tipo === fTipo)
+      && casa(busca, c.numero, c.cliente, c.cidade, c.descricao, c.proposta_numero)
+    ));
+  }, [contratos.data, busca, fStatus, fTipo]);
 
   function novo() {
     setErro(''); setAviso('');
@@ -179,6 +192,29 @@ export function Contratos() {
             </p>
           </div>
         ) : (
+          <>
+          <BarraFiltro
+            busca={busca} aoBuscar={setBusca}
+            placeholder="Buscar por número, cliente, cidade ou proposta de origem"
+            mostrando={listaFiltrada.length} total={contratos.data.length}
+            aoLimpar={() => { setBusca(''); setFStatus(''); setFTipo(''); }}
+            filtros={<>
+              <select value={fStatus} onChange={(e) => setFStatus(e.target.value)} aria-label="Filtrar por status">
+                <option value="">Todos os status</option>
+                {FLUXO_STATUS.map((k) => <option key={k} value={k}>{ROTULO_STATUS_CONTRATO[k]}</option>)}
+              </select>
+              <select value={fTipo} onChange={(e) => setFTipo(e.target.value)} aria-label="Filtrar por tipo">
+                <option value="">Os dois tipos</option>
+                <option value="manutencao">{ROTULO_TIPO.manutencao}</option>
+                <option value="usina">{ROTULO_TIPO.usina}</option>
+              </select>
+            </>}
+          />
+          {!listaFiltrada.length ? (
+            <div className="cartao" style={{ padding: 24, textAlign: 'center' }}>
+              <p className="sub" style={{ margin: 0 }}>Nenhum contrato com esses filtros.</p>
+            </div>
+          ) : (
           <div className="cartao" style={{ overflowX: 'auto' }}>
             <table className="tabela">
               <thead>
@@ -188,7 +224,7 @@ export function Contratos() {
                 </tr>
               </thead>
               <tbody>
-                {contratos.data.map((c) => {
+                {listaFiltrada.map((c) => {
                   const lacunas = lacunasDoContrato(c);
                   return (
                     <tr key={c.id}>
@@ -249,6 +285,8 @@ export function Contratos() {
               </tbody>
             </table>
           </div>
+          )}
+          </>
         )}
 
       {form ? (
