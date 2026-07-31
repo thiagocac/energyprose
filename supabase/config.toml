@@ -1,0 +1,24 @@
+# ============================================================================
+# Configuração do projeto para a CLI do Supabase.
+#
+# Este arquivo existe por UM motivo que custaria caro descobrir na prática: a
+# CLI aplica `verify_jwt = true` em toda função que não estiver declarada aqui.
+#
+# A `proposta-publica-pdf` PRECISA de `verify_jwt = false` — quem clica no link
+# é o cliente, que não tem login. Sem esta declaração, o primeiro
+# `supabase functions deploy` sem argumento silenciosamente exigiria JWT dela, e
+# todo link de download já enviado por WhatsApp passaria a devolver 401.
+#
+# A autorização dessa função não é o JWT: é o token da proposta, conferido pela
+# RPC `proposta_publica_pdf` dentro do banco.
+# ============================================================================
+project_id = "mgcgmdiymqpxcsxhelhs"
+
+[functions.gerar-documento-pdf]
+# Emite proposta e contrato para a EQUIPE. Exige login, e a RPC ainda confere
+# `is_equipe()` por dentro.
+verify_jwt = true
+
+[functions.proposta-publica-pdf]
+# Porta pública. Ver o comentário no topo antes de mexer.
+verify_jwt = false

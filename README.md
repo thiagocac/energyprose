@@ -305,19 +305,35 @@ público. A paridade é responsabilidade dos testes — se mudar uma regra, mude
 
 ## Pendências conhecidas
 
-- **Redeployar a Edge Function.** É a única pendência que trava função nova.
-  O que está em produção hoje (versão 3) gera a proposta de usina e os dois
-  contratos; **não** conhece a Proposta Comercial de serviço. O código já está
-  aqui, testado e com o bundle gerado — falta subir:
+- **Redeployar `gerar-documento-pdf`.** É a única pendência que trava função
+  nova. O que está em produção (versão 3) gera a proposta de usina e os dois
+  contratos; **não** conhece a Proposta Comercial de serviço, nem carrega o
+  sanitizador de caracteres, nem a correção do espaço inquebrável no `R$`.
 
   ```bash
-  npm run build:ef
-  supabase functions deploy gerar-documento-pdf --project-ref mgcgmdiymqpxcsxhelhs
+  npm install
+  npm run build:ef        # regera layout.js a partir de src/
+  # a conferência que importa — tem que dar 0:
+  grep -c "\\u[0-9a-fA-F]\\{4\\}" supabase/functions/gerar-documento-pdf/layout.js
+
+  npx supabase login
+  npx supabase link --project-ref mgcgmdiymqpxcsxhelhs
+  npx supabase functions deploy gerar-documento-pdf
   ```
 
-  Enquanto não subir, uma proposta de linha de serviço sai com o layout de
-  usina e é barrada na validação por falta do bloco do sistema.
-- Exportar as migrations `08`–`19` para `supabase/migrations/`, para o
+  **Docker não é necessário**: a CLI cai para deploy por API quando não o
+  encontra. Se reclamar, force com `--use-api`.
+
+  **Nomeie a função no comando.** `supabase functions deploy` sem argumento sobe
+  TODAS — o que só é seguro porque o `supabase/config.toml` declara o
+  `verify_jwt` de cada uma. Sem esse arquivo, a `proposta-publica-pdf` viraria
+  `verify_jwt = true` e todo link de download já enviado daria 401.
+
+  Para conferir depois: emita uma proposta de linha de serviço (Limpeza, por
+  exemplo). Ela tem que sair no formato Proposta Comercial. Numa proposta de
+  usina, o valor no card de investimento tem que sair `R$ 18.000,00`, sem o
+  retângulo vazio entre o cifrão e o número.
+- Exportar as migrations `08`–`27` para `supabase/migrations/`, para o
   repositório voltar a ser reconstrutível do zero:
 
   ```bash
