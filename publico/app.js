@@ -101,6 +101,20 @@ function layout(conteudo, ativo) {
   <div class="rodape">EnergyPRO · ConsulteGEO — uso interno. Dados pessoais protegidos pela LGPD.</div>`;
 }
 
+/**
+ * UPDATE barrado pelo RLS no Supabase NÃO devolve erro — só afeta zero linhas.
+ * Sem pedir as linhas de volta, o painel dizia "Status alterado" e "Observações
+ * salvas" sem ter salvado nada. Toda escrita por tabela passa por aqui.
+ */
+async function gravar(tabela, dados, id, oQue) {
+  const { data, error } = await sb.from(tabela).update(dados).eq('id', id).select('id');
+  if (error) throw new Error(error.message);
+  if (!data || !data.length) {
+    throw new Error('Nada foi salvo' + (oQue ? ' (' + oQue + ')' : '')
+      + ': seu perfil pode não ter permissão para essa alteração.');
+  }
+}
+
 function ligarSair() {
   const b = $('#sair');
   if (b) b.onclick = async () => { await sb.auth.signOut(); location.href = '/login'; };
@@ -497,7 +511,7 @@ function telaFormulario() {
 
     // Só vira "novo" quando os uploads terminam sem falha — evita cadastro sem anexo silencioso
     if (!falhas.length) {
-      await sb.from('cadastros').update({ status: 'novo' }).eq('id', novo.id);
+      await gravar('cadastros', { status: 'novo' }, novo.id, 'status do novo cadastro');
       novo.status = 'novo';
     }
     await registrarEvento(novo.id, 'criou', {
@@ -958,7 +972,7 @@ async function telaFicha(id) {
   // --- ações ---
   $('#mstatus').onchange = async e => {
     const novo = e.target.value;
-    const { error } = await sb.from('cadastros').update({ status: novo }).eq('id', id);
+    const { error } = await gravar('cadastros', { status: novo }, id, 'status');
     $('#aviso-ficha').innerHTML = error
       ? `<div class="aviso aviso-erro">Erro ao mudar status: ${esc(error.message)}</div>`
       : `<div class="aviso aviso-ok">Status alterado para <b>${esc(rotStatus(novo))}</b>.</div>`;
@@ -967,7 +981,7 @@ async function telaFicha(id) {
 
   $('#bobs').onclick = async () => {
     const b = $('#bobs'); b.disabled = true; b.textContent = 'Salvando…';
-    const { error } = await sb.from('cadastros').update({ observacoes: $('#obs').value.trim() || null }).eq('id', id);
+    const { error } = await gravar('cadastros', { observacoes: $('#obs').value.trim() || null }, id, 'observações');
     b.disabled = false; b.textContent = 'Salvar observações';
     $('#aviso-ficha').innerHTML = error
       ? `<div class="aviso aviso-erro">${esc(error.message)}</div>`
@@ -1172,7 +1186,7 @@ function telaEditar(r, arqs) {
     const bt = $('#bsalvar'); bt.disabled = true; bt.innerHTML = '<span class="spin"></span> Salvando…';
     const zona = f.querySelector('input[name="zona"]:checked');
 
-    const { error } = await sb.from('cadastros').update({
+    const { error } = await gravar('cadastros', {
       nome: f.elements.nome.value.trim(),
       cpf: soDigitos(f.elements.cpf.value) || null,
       whatsapp: soDigitos(f.elements.whatsapp.value) || null,
@@ -1187,7 +1201,7 @@ function telaEditar(r, arqs) {
       tipo_telhado: f.elements.tipo_telhado.value || null,
       kit_descricao: f.elements.kit_descricao.value.trim() || null,
       valor_proposta: moedaParaNum(f.elements.valor_proposta.value)
-    }).eq('id', r.id);
+    }, r.id, 'dados do cadastro');
 
     if (error) {
       bt.disabled = false; bt.textContent = 'Salvar alterações';

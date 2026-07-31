@@ -121,12 +121,19 @@ function identificacao(fl, ctx) {
     });
   };
 
-  par(MARGEM, 0, 'CLIENTE', cliente.nome);
+  // Razão social de condomínio ou associação passa de uma linha. Quebrar em duas
+  // é melhor que truncar no cartão que identifica quem está comprando.
+  text(p, 'CLIENTE', { x: MARGEM + 4, y: fl.estado.y + 4, size: 6.2, font: ctx.F.os6, color: C.suave, tracking: 0.5 });
+  const nomeCliente = wrap(ctx.F.pop6, cliente.nome || '—', 7.6, meia - 8).slice(0, 2);
+  nomeCliente.forEach((ln, i) => text(p, ln, {
+    x: MARGEM + 4, y: fl.estado.y + 7.8 + i * 3.4, size: 7.6, font: ctx.F.pop6, color: C.tinta,
+  }));
+  const yBase = fl.estado.y + 7.8 + nomeCliente.length * 3.4 + 1.6;
   text(p, [cliente.cidade, cliente.uf].filter(Boolean).join('/') || '—', {
-    x: MARGEM + 4, y: fl.estado.y + 16.6, size: 7.4, font: ctx.F.os4, color: C.suave,
+    x: MARGEM + 4, y: yBase, size: 7.4, font: ctx.F.os4, color: C.suave,
   });
   text(p, [fone(cliente.whatsapp), cliente.email].filter(Boolean).join(' · '), {
-    x: MARGEM + 4, y: fl.estado.y + 20.6, size: 7.4, font: ctx.F.os4, color: C.suave,
+    x: MARGEM + 4, y: yBase + 4, size: 7.4, font: ctx.F.os4, color: C.suave,
   });
 
   const x2 = MARGEM + meia + 4;
@@ -338,21 +345,27 @@ function condicoes(fl, ctx) {
 
   secao(fl, ctx, 'CONDIÇÕES');
   const meia = (LARG - 4) / 2;
-  const h = 15;
-  fl.garantir(h * 2 + 4);
+
+  // A altura dos cartões vem do texto mais longo, e não de um número fixo. A
+  // versão antiga cortava a forma de pagamento em duas linhas com reticências —
+  // o cliente assinava uma proposta com a condição de pagamento pela metade.
+  const quebrados = cartoes.map(([ic, rot, val]) => [
+    ic, rot, wrap(ctx.F.pop6, String(val), 7.6, meia - 17),
+  ]);
+  const maxLinhas = Math.max(1, ...quebrados.map(([, , l]) => l.length));
+  const h = Math.max(15, 8.4 + maxLinhas * 3.6);
+
+  fl.garantir(h * 2 + 8);
   const p = fl.estado.page;
 
-  cartoes.forEach(([ic, rot, val], i) => {
+  quebrados.forEach(([ic, rot, linhas], i) => {
     const x = MARGEM + (i % 2) * (meia + 4);
     const y = fl.estado.y + Math.floor(i / 2) * (h + 3);
     roundRect(p, { x, y, w: meia, h, r: 2.2, borderColor: C.linha, borderWidth: 0.5 });
     icon(p, ic, { x: x + 4.4, y: y + 4.6, size: 5, color: C.navy, peso: 1.7 });
     text(p, rot, { x: x + 12.6, y: y + 3.6, size: 6.4, font: ctx.F.os6, color: C.suave, tracking: 0.4 });
-    const linhas = wrap(ctx.F.pop6, String(val), 7.6, meia - 17);
-    linhas.slice(0, 2).forEach((ln, j) => {
-      text(p, j === 1 && linhas.length > 2 ? `${ln}…` : ln, {
-        x: x + 12.6, y: y + 7.4 + j * 3.6, size: 7.6, font: ctx.F.pop6, color: C.tinta,
-      });
+    linhas.forEach((ln, j) => {
+      text(p, ln, { x: x + 12.6, y: y + 7.4 + j * 3.6, size: 7.6, font: ctx.F.pop6, color: C.tinta });
     });
   });
   fl.estado.y += h * 2 + 3 + 5;
@@ -373,7 +386,9 @@ function observacoes(fl, ctx) {
 
 /** Aceite: a linha que transforma orçamento em pedido. */
 function aceite(fl, ctx) {
-  fl.garantir(30);
+  // 34 mm é a altura real do bloco (título + parágrafo + folga + linhas +
+  // rótulos). Reservar menos jogava a assinatura sozinha para uma página nova.
+  fl.garantir(34);
   secao(fl, ctx, 'ACEITE');
   paragrafo(fl, ctx,
     'Ao assinar, o CONTRATANTE declara estar de acordo com o escopo, os valores e as condições acima, '
@@ -384,19 +399,25 @@ function aceite(fl, ctx) {
   const p = fl.estado.page;
   const larg = (LARG - 12) / 2;
   line(p, { x1: MARGEM, y1: fl.estado.y, x2: MARGEM + larg, y2: fl.estado.y, color: C.tinta, thickness: 0.4 });
-  text(p, fit(ctx.F.pop6, ctx.dados.cliente.nome || '', 7.8, larg), {
-    x: MARGEM, y: fl.estado.y + 2, w: larg, size: 7.8, font: ctx.F.pop6, color: C.tinta, align: 'center',
-  });
+  // Razão social de condomínio ou associação não cabe numa linha; truncar com
+  // reticências no lugar onde a pessoa assina é pior do que quebrar em duas.
+  const nome = wrap(ctx.F.pop6, ctx.dados.cliente.nome || '', 7.8, larg).slice(0, 2);
+  nome.forEach((ln, i) => text(p, ln, {
+    x: MARGEM, y: fl.estado.y + 2 + i * 3.4, w: larg, size: 7.8, font: ctx.F.pop6, color: C.tinta, align: 'center',
+  }));
+  const yRot = fl.estado.y + 2 + Math.max(1, nome.length) * 3.4 + 0.6;
+  // Rótulo em cinza, não em âmbar: âmbar sobre branco dá contraste de ~2:1 e
+  // some no papel. A cor da marca fica onde há fundo escuro para sustentá-la.
   text(p, 'ASSINATURA DO CLIENTE', {
-    x: MARGEM, y: fl.estado.y + 6, w: larg, size: 6.2, font: ctx.F.os6, color: C.amber, align: 'center', tracking: 0.5,
+    x: MARGEM, y: yRot, w: larg, size: 6.2, font: ctx.F.os6, color: C.suave, align: 'center', tracking: 0.5,
   });
 
   const x2 = MARGEM + larg + 12;
   line(p, { x1: x2, y1: fl.estado.y, x2: x2 + larg, y2: fl.estado.y, color: C.tinta, thickness: 0.4 });
   text(p, 'DATA', {
-    x: x2, y: fl.estado.y + 2.4, w: larg, size: 6.2, font: ctx.F.os6, color: C.amber, align: 'center', tracking: 0.5,
+    x: x2, y: fl.estado.y + 2.4, w: larg, size: 6.2, font: ctx.F.os6, color: C.suave, align: 'center', tracking: 0.5,
   });
-  fl.estado.y += 14;
+  fl.estado.y += 14 + Math.max(0, nome.length - 1) * 3.4;
 }
 
 // ---------------------------------------------------------------------------

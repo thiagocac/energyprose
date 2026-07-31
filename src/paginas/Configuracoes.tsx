@@ -94,10 +94,11 @@ export function Configuracoes() {
           </div>
         </Secao>
 
-        <Secao titulo="Benefícios" nota="Card do lado direito da proposta. Cinco linhas cabem bem; mais que isso aperta.">
+        <Secao titulo="Benefícios" nota="Card do lado direito da proposta. Cabem 6 linhas — o PDF corta o que passar disso.">
           <ListaEditavel
             itens={c.beneficios}
             onChange={(v) => set('beneficios', v)}
+            teto={6}
             novo={() => ({ icone: 'star', titulo: '', sub: '' })}
             colunas={[
               { chave: 'titulo', rot: 'Título', larg: '1fr' },
@@ -106,19 +107,21 @@ export function Configuracoes() {
           />
         </Secao>
 
-        <Secao titulo="O que está incluso" nota="Grade de ícones da proposta. Quinze itens preenchem a grade de 5 × 3.">
+        <Secao titulo="O que está incluso" nota="Grade de ícones da proposta: 5 por fileira, até 4 fileiras. O PDF corta o que passar de 20.">
           <ListaEditavel
             itens={c.itens_inclusos}
             onChange={(v) => set('itens_inclusos', v)}
+            teto={20}
             novo={() => ({ icone: 'checkCircle', texto: '' })}
             colunas={[{ chave: 'texto', rot: 'Texto (em caixa alta)', larg: '2fr' }]}
           />
         </Secao>
 
-        <Secao titulo="Condições de pagamento" nota="Bloco Investimento, abaixo do valor.">
+        <Secao titulo="Condições de pagamento" nota="Bloco Investimento, abaixo do valor. Cabem 5 linhas.">
           <ListaEditavel
             itens={c.condicoes_pagamento}
             onChange={(v) => set('condicoes_pagamento', v)}
+            teto={5}
             novo={() => ({ icone: 'money', titulo: '', detalhe: '' })}
             colunas={[
               { chave: 'titulo', rot: 'Título', larg: '1fr' },
@@ -180,9 +183,11 @@ function Num({ rot, val, on, passo = 1, dica }: { rot: string; val: number; on: 
 type Linha = Record<string, string>;
 
 /** Editor das listas que viram blocos do PDF: ícone + campos + ordem. */
-function ListaEditavel<T extends Linha>({ itens, onChange, novo, colunas }: {
+function ListaEditavel<T extends Linha>({ itens, onChange, novo, colunas, teto }: {
   itens: T[]; onChange: (v: T[]) => void; novo: () => T;
   colunas: Array<{ chave: keyof T & string; rot: string; larg: string }>;
+  /** Quantas linhas o card da proposta imprime. Acima disso, o PDF corta. */
+  teto: number;
 }) {
   const patch = (i: number, chave: string, v: string) =>
     onChange(itens.map((it, k) => (k === i ? { ...it, [chave]: v } : it)));
@@ -194,9 +199,16 @@ function ListaEditavel<T extends Linha>({ itens, onChange, novo, colunas }: {
     onChange(copia);
   };
   const grid = `120px ${colunas.map((c) => c.larg).join(' ')} 78px`;
+  const excedente = itens.length - teto;
 
   return (
     <>
+      {excedente > 0 ? (
+        <div className="aviso erro" style={{ marginBottom: 10 }}>
+          O card da proposta imprime {teto} {teto === 1 ? 'linha' : 'linhas'}.
+          {' '}{excedente === 1 ? 'A última não vai sair' : `As últimas ${excedente} não vão sair`} no PDF.
+        </div>
+      ) : null}
       <div className="lista-cab" style={{ gridTemplateColumns: grid }}>
         <span>Ícone</span>
         {colunas.map((c) => <span key={c.chave}>{c.rot}</span>)}

@@ -96,6 +96,11 @@ export async function obterConfigEmpresa(): Promise<ConfigEmpresa> {
 // os dois lados nos relatórios.
 
 export async function salvarServico(s: Partial<Servico> & { nome: string; codigo: string }): Promise<void> {
+  // Sem esta guarda, salvar sem código estourava um "Cannot read properties of
+  // undefined (reading 'trim')" no banner — erro de programador na cara de quem
+  // só esqueceu de preencher um campo.
+  if (!String(s.codigo ?? '').trim()) throw new Error('Informe o código do serviço.');
+  if (!String(s.nome ?? '').trim()) throw new Error('Informe o nome do serviço.');
   const dados = {
     codigo: s.codigo.trim().toUpperCase(), nome: s.nome.trim(),
     descricao: s.descricao ?? null, categoria: s.categoria ?? 'servico',
@@ -118,6 +123,8 @@ export async function salvarEquipamento(
 ): Promise<void> {
   if (e.tipo === 'modulo' && !e.potencia_wp) throw new Error('Módulo precisa da potência em Wp.');
   if (e.tipo === 'inversor' && !e.potencia_kw) throw new Error('Inversor precisa da potência em kW.');
+  if (!String(e.fabricante ?? '').trim()) throw new Error('Informe o fabricante.');
+  if (!String(e.modelo ?? '').trim()) throw new Error('Informe o modelo.');
   const dados = {
     tipo: e.tipo, fabricante: e.fabricante.trim(), modelo: e.modelo.trim(),
     potencia_wp: e.tipo === 'modulo' ? Number(e.potencia_wp) || null : null,

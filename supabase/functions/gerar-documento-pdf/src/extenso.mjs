@@ -48,11 +48,26 @@ function inteiroExtenso(n) {
   return `${blocos.join(', ')}${ligaComE ? ' e ' : ', '}${ultimo}`;
 }
 
-/** "R$ 11.500,00 (onze mil e quinhentos reais)" */
+/**
+ * "R$ 11.500,00 (onze mil e quinhentos reais)"
+ *
+ * ARMADILHA JÁ PAGA: `Math.round` e o arredondamento do `Intl` discordavam em
+ * casos de meio centavo — 1,005 saía como "R$ 1,01" ao lado de "um real". Este
+ * campo existe justamente para conferir o numeral; discordar dele é pior do que
+ * não existir. Agora o extenso parte da MESMA string que o `moeda()` imprime.
+ *
+ * Negativo também quebrava: -50 devolvia " reais" e -0,01 devolvia "".
+ */
 export function reaisPorExtenso(valor) {
-  const v = Math.round((Number(valor) || 0) * 100);
-  const inteiros = Math.floor(v / 100);
-  const centavos = v % 100;
+  const n = Number(valor) || 0;
+  const negativo = n < 0;
+  // Passa pelo formatador para herdar exatamente o arredondamento dele.
+  const texto = Math.abs(n).toLocaleString('pt-BR', {
+    minimumFractionDigits: 2, maximumFractionDigits: 2,
+  });
+  const [parteInteira, parteCentavos] = texto.split(',');
+  const inteiros = Number(parteInteira.replace(/\D/g, ''));
+  const centavos = Number(parteCentavos ?? '0');
   const partes = [];
   if (inteiros > 0 || centavos === 0) {
     const txt = inteiroExtenso(inteiros);
@@ -63,5 +78,6 @@ export function reaisPorExtenso(valor) {
   if (centavos > 0) {
     partes.push(`${inteiroExtenso(centavos)} ${centavos === 1 ? 'centavo' : 'centavos'}`);
   }
-  return partes.join(' e ');
+  const extenso = partes.join(' e ');
+  return negativo ? `menos ${extenso}` : extenso;
 }

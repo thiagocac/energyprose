@@ -599,7 +599,8 @@ function assinaturas(fl, ctx) {
   const assinar = (x, nome, papel, doc) => {
     line(fl.estado.page, { x1: x, y1: fl.estado.y, x2: x + larg, y2: fl.estado.y, color: C.tinta, thickness: 0.4 });
     text(fl.estado.page, fit(ctx.F.pop6, nome, 8.2, larg), { x, y: fl.estado.y + 2, w: larg, size: 8.2, font: ctx.F.pop6, color: C.tinta, align: 'center' });
-    text(fl.estado.page, papel, { x, y: fl.estado.y + 6.4, w: larg, size: 6.6, font: ctx.F.os6, color: C.amber, align: 'center', tracking: 0.4 });
+    // Cinza, não âmbar: âmbar sobre branco não sobrevive à impressão.
+    text(fl.estado.page, papel, { x, y: fl.estado.y + 6.4, w: larg, size: 6.6, font: ctx.F.os6, color: C.suave, align: 'center', tracking: 0.4 });
     if (doc) text(fl.estado.page, doc, { x, y: fl.estado.y + 10.2, w: larg, size: 6.6, font: ctx.F.os4, color: C.suave, align: 'center' });
   };
 

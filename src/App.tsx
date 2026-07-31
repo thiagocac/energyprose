@@ -1,6 +1,7 @@
 import { BrowserRouter, Navigate, Route, Routes } from 'react-router-dom';
 import { useAuth } from './lib/auth';
 import { Layout } from './componentes/Layout';
+import { Barreira } from './componentes/Barreira';
 import { Entrada } from './paginas/Entrada';
 import { Funil } from './paginas/Funil';
 import { Propostas } from './paginas/Propostas';
@@ -16,18 +17,18 @@ export function App() {
     <BrowserRouter>
       <Routes>
         {/* Rota pública: fora do controle de acesso, é o link que o cliente recebe. */}
-        <Route path="/p/:token" element={<PropostaPublica />} />
+        <Route path="/p/:token" element={<Barreira><PropostaPublica /></Barreira>} />
         <Route path="*" element={
           !pronto ? <div className="carregando">Carregando…</div>
           : !sessao || !perfil ? <Entrada semAcesso={semAcesso} />
           : (
             <Layout>
               <Routes>
-                <Route path="/crm" element={<Funil />} />
-                <Route path="/propostas" element={<Propostas />} />
-                <Route path="/contratos" element={<Contratos />} />
-                <Route path="/catalogo" element={<Catalogo />} />
-                <Route path="/configuracoes" element={<Configuracoes />} />
+                <Route path="/crm" element={<Barreira><Funil /></Barreira>} />
+                <Route path="/propostas" element={<Barreira><Propostas /></Barreira>} />
+                <Route path="/contratos" element={<Barreira><Contratos /></Barreira>} />
+                <Route path="/catalogo" element={<Barreira><Catalogo /></Barreira>} />
+                <Route path="/configuracoes" element={<Barreira><Configuracoes /></Barreira>} />
                 <Route path="*" element={<Navigate to="/crm" replace />} />
               </Routes>
             </Layout>

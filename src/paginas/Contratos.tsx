@@ -2,6 +2,7 @@ import { useMemo, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Cabecalho } from '../componentes/Layout';
 import { BarraFiltro, casa } from '../componentes/Filtros';
+import { Painel } from '../componentes/Painel';
 import { useAuth } from '../lib/auth';
 import { moeda, dataBr, hojeISO, dataFutura } from '../lib/formato';
 import { gerarDocumentoPdf, abrirAbaDiferida } from '../lib/api/documentos';
@@ -308,14 +309,17 @@ export function Contratos() {
         )}
 
       {form ? (
-        <div className="painel-fundo" onClick={() => setForm(null)}>
-          <aside className="painel" onClick={(e) => e.stopPropagation()}>
-            <header>
-              <h2>{form.id ? `Contrato ${form.numero ?? ''}` : 'Novo contrato'}</h2>
-              <button className="botao discreto" onClick={() => setForm(null)}>Fechar</button>
-            </header>
-
-            <div className="painel-corpo">
+        <Painel
+          titulo={form.id ? `Contrato ${form.numero ?? ''}` : 'Novo contrato'}
+          aoFechar={() => setForm(null)}
+          rodape={<>
+            <button className="botao secundario" onClick={() => setForm(null)}>Cancelar</button>
+            <button className="botao" disabled={salvar.isPending} onClick={() => salvar.mutate()}>
+              {salvar.isPending ? 'Salvando…' : 'Salvar contrato'}
+            </button>
+          </>}
+        >
+          <>
               <div className="grade2">
                 <label className="campo">
                   <span>Cliente *</span>
@@ -428,16 +432,8 @@ export function Contratos() {
                          onChange={(e) => setForm({ ...form, condicao_pagamento: e.target.value })} />
                 </label>
               </section>
-            </div>
-
-            <footer>
-              <button className="botao secundario" onClick={() => setForm(null)}>Cancelar</button>
-              <button className="botao" disabled={salvar.isPending} onClick={() => salvar.mutate()}>
-                {salvar.isPending ? 'Salvando…' : 'Salvar contrato'}
-              </button>
-            </footer>
-          </aside>
-        </div>
+          </>
+        </Painel>
       ) : null}
     </>
   );

@@ -104,12 +104,23 @@ público; `08`–`15` acrescentaram o módulo comercial:
 | `20_save_contrato` | `save_contrato` e `arquivar_contrato` — abre a edição de recorrência, visitas e vigência, e o contrato avulso sem proposta |
 | `21_expiracao_automatica` | `pg_cron` + job diário; `expirar_propostas()` passa a registrar evento |
 | `22_fecha_anon_nas_funcoes_novas` | fecha o grant EXPLÍCITO que o Supabase dá a `anon` em toda função nova (ver armadilha 3) |
+| `23_correcoes_auditoria` | `duplicar_proposta` copia a linha; gatilho deriva `tipo` da linha; aceite recusa proposta expirada; `expirar_propostas` ganha gate |
+| `24_numeracao_e_contratos` | `numero_seq` sempre gravado e ano em Brasília; um contrato por proposta; vínculo imutável; conversão preenche o plano de manutenção |
+| `25_restaura_crm_snapshot` | restaura a função da 10 com o filtro de etapa arquivada nos KPIs (a 24 a havia reescrito errado) |
+| `26_pdf_publico_por_token` | `proposta_publica_pdf`: quinta porta pública, devolve o caminho do PDF de uma proposta |
+| `27_fecha_net_e_sal_do_ip` | tira `sal_ip`, `ip_hash` e `limpar_envios_publicos` do alcance do `anon` |
 
 ### Edge Functions
 
-| Função | O que faz |
-|---|---|
-| `gerar-documento-pdf` | Gera **três** documentos a partir de `render_document_context`, arquiva no bucket `documentos` e registra a trilha. Ver `supabase/functions/gerar-documento-pdf/LEIA-ME.md`. |
+| Função | O que faz | JWT |
+|---|---|---|
+| `gerar-documento-pdf` | Gera **três** documentos a partir de `render_document_context`, arquiva no bucket `documentos` e registra a trilha. Ver o `LEIA-ME.md` da função. | exigido |
+| `proposta-publica-pdf` | Entrega o PDF ao CLIENTE pelo link do WhatsApp. Sem login: a autorização é o token, conferido pela RPC `proposta_publica_pdf`. A chave de serviço não sai da função, e o caminho do arquivo vem do banco, nunca do pedido. | não |
+
+O caminho bonito `/p/<token>/pdf` é um **proxy** do Netlify (status 200) para a
+segunda função: o cliente nunca vê o domínio do Supabase, e o link que ele
+guardou continua sendo o da Energy PRO. A regra fica ANTES do `/p/*`, senão o
+app React responde primeiro e o cliente vê a tela de aceite em vez do arquivo.
 
 Os três layouts, e quem escolhe:
 
@@ -228,6 +239,19 @@ hash SHA-256, com validade).
 Por isso o Security Advisor mostra avisos `security_definer_function_executable` — todos
 **intencionais**. A linha de base hoje é ~21 avisos (as RPCs da equipe + as 4 públicas +
 `auth_leaked_password_protection`, que é ajuste de painel). Alerta de outro tipo é regressão.
+
+### Um item que só o painel do Supabase resolve
+
+O schema `net` (pg_net) é executável pelo `anon`: as duas tabelas sem RLS e as
+funções `http_*` liberadas. **Não dá para corrigir por migration** — o schema
+pertence a `supabase_admin`, e o `postgres` do projeto não tem permissão para
+revogar (o comando roda sem erro e sem efeito).
+
+Hoje é inalcançável, porque o PostgREST só expõe `public` e `graphql_public`.
+A regra prática, então, é uma só: **nunca acrescente `net` (nem `seguranca`) à
+lista de "Exposed schemas"** em Settings → API. Se um dia isso acontecer,
+`net._http_response` — que guarda corpo e cabeçalhos, `Authorization` incluído —
+vira leitura pública, e `net.http_post` vira SSRF.
 
 ## Rotinas automáticas
 
