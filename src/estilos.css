@@ -50,6 +50,9 @@ a { color: var(--navy); }
 .nav a:hover { background: rgba(255,255,255,.07); color: #fff; }
 .nav a.ativo { background: var(--quente); color: var(--navy-fundo); font-weight: 600; }
 .rodape-lateral { margin-top: auto; font-size: 12px; opacity: .75; padding: 12px 8px 0; border-top: 1px solid rgba(255,255,255,.12); }
+.rodape-lateral .acoes-conta { display: flex; gap: 14px; margin-top: 6px; }
+.rodape-lateral .acoes-conta .botao { color: #D7E2F0; padding-left: 0; padding-right: 0; }
+.rodape-lateral .acoes-conta .botao:hover { background: transparent; color: #fff; text-decoration: underline; }
 .conteudo { flex: 1; min-width: 0; padding: 26px 30px 60px; }
 
 @media (max-width: 860px) {
@@ -75,7 +78,8 @@ a { color: var(--navy); }
     display: flex; align-items: center; gap: 10px; white-space: nowrap;
   }
   .rodape-lateral > div:nth-child(2) { display: none; }   /* o papel cabe na tela larga */
-  .rodape-lateral .botao { margin-top: 0 !important; padding-left: 8px !important; }
+  .rodape-lateral .acoes-conta { margin-top: 0; gap: 8px; }
+  .rodape-lateral .acoes-conta .botao { padding-left: 6px; padding-right: 6px; }
   .conteudo { padding: 18px 16px 48px; }
 }
 
@@ -318,6 +322,25 @@ fieldset[disabled] input, fieldset[disabled] select, fieldset[disabled] textarea
   border-left: 2px solid var(--quente-medio); padding-left: 7px; max-width: 34ch;
 }
 
+/* "sugerir uma forte", ao lado do rótulo do campo de senha nova. Parece link
+   porque é atalho, não a ação principal do formulário. */
+.link-sugerir {
+  float: right; background: none; border: 0; padding: 0; cursor: pointer;
+  font: inherit; font-weight: 500; text-transform: none; letter-spacing: 0;
+  color: var(--navy); text-decoration: underline;
+}
+.link-sugerir:hover { color: var(--quente-fim); }
+
+/* Caixa de marcação avulsa, fora da barra de filtros. Mesmo desenho de
+   `.barra-filtro .filtro-marca`, que é específico demais para reaproveitar. */
+.marcar {
+  display: inline-flex; align-items: center; gap: 7px;
+  padding: 9px 11px; border: 1px solid var(--linha); border-radius: 9px;
+  background: var(--branco); font-size: 13.5px; color: var(--tinta); cursor: pointer;
+}
+.marcar:hover { background: var(--fundo); }
+.marcar input { accent-color: var(--quente-medio); cursor: pointer; }
+
 /* Botão de contato na página do cliente. Fica largo e centralizado porque, para
    quem tem dúvida, é o caminho principal — não um detalhe do rodapé. */
 .falar-conosco {
@@ -346,4 +369,12 @@ fieldset[disabled] input, fieldset[disabled] select, fieldset[disabled] textarea
   .kpi .rot { font-size: 9.5px; letter-spacing: .08em; }
   .tabela { font-size: 12.5px; }
   .tabela th, .tabela td { padding: 9px 8px; }
+}
+
+/* Abaixo disso o nome do usuário não cabe ao lado da marca e empurra a barra
+   para uma terceira linha. Ele sai: o que a pessoa precisa alcançar ali é
+   Senha e Sair, não a confirmação de quem está logado — isso já está em cada
+   tela que ela abre. */
+@media (max-width: 560px) {
+  .rodape-lateral > div:first-child { display: none; }
 }

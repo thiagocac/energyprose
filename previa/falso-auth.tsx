@@ -15,7 +15,7 @@ export function ProvedorAuth({ children }: { children: ReactNode }) {
 
 export const useAuth = () => ({
   pronto: true,
-  sessao: { user: { id: 'u1' } } as never,
+  sessao: { user: { id: 'u1', email: 'energypro.se@gmail.com' } } as never,
   perfil: PERFIL,
   semAcesso: false,
   pode: () => true,

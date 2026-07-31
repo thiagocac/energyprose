@@ -41,6 +41,40 @@ await foto('propostas-painel', 'propostas', 1366, 1000, async (pag) => {
   await pag.locator('.painel select').first().selectOption({ index: 1 });
   await pag.waitForTimeout(300);
 });
+// Trocar senha: aberto, com crítica, e o erro de senha atual errada.
+const abrirSenha = async (pag) => {
+  await pag.getByRole('button', { name: 'Senha' }).click();
+  await pag.waitForTimeout(250);
+};
+await foto('senha-vazia', 'funil', 1366, 900, abrirSenha);
+await foto('senha-critica', 'funil', 1366, 900, async (pag) => {
+  await abrirSenha(pag);
+  await pag.locator('.painel input[type="password"]').nth(0).fill('previa-atual');
+  await pag.locator('.painel input[type="password"]').nth(1).fill('energypro2026');
+  await pag.waitForTimeout(200);
+});
+await foto('senha-sugerida', 'funil', 1366, 900, async (pag) => {
+  await abrirSenha(pag);
+  await pag.locator('.painel input[type="password"]').nth(0).fill('previa-atual');
+  await pag.getByRole('button', { name: 'sugerir uma forte' }).click();
+  await pag.waitForTimeout(200);
+});
+await foto('senha-erro-atual', 'funil', 1366, 900, async (pag) => {
+  await abrirSenha(pag);
+  await pag.locator('.painel input[type="password"]').nth(0).fill('senha-que-nao-e');
+  await pag.getByRole('button', { name: 'sugerir uma forte' }).click();
+  await pag.getByRole('button', { name: 'Alterar senha' }).click();
+  await pag.waitForTimeout(400);
+});
+await foto('senha-feito', 'funil', 1366, 900, async (pag) => {
+  await abrirSenha(pag);
+  await pag.locator('.painel input[type="password"]').nth(0).fill('previa-atual');
+  await pag.getByRole('button', { name: 'sugerir uma forte' }).click();
+  await pag.getByRole('button', { name: 'Alterar senha' }).click();
+  await pag.waitForTimeout(400);
+});
+await foto('senha-celular', 'funil', 390, 780, abrirSenha);
+
 await foto('funil-desktop', 'funil', 1366, 900);
 await foto('funil-celular', 'funil', 390, 780);
 await foto('publica-celular', 'publica', 390, 780);

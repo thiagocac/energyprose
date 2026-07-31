@@ -1,6 +1,7 @@
 import { NavLink } from 'react-router-dom';
-import type { ReactNode } from 'react';
+import { useState, type ReactNode } from 'react';
 import { useAuth } from '../lib/auth';
+import { TrocarSenha } from './TrocarSenha';
 
 const MENU = [
   { para: '/crm', rot: 'Funil' },
@@ -10,7 +11,11 @@ const MENU = [
 ];
 
 export function Layout({ children }: { children: ReactNode }) {
-  const { perfil, sair } = useAuth();
+  const { perfil, sessao, sair } = useAuth();
+  const [trocando, setTrocando] = useState(false);
+  // O e-mail vem da SESSÃO, não de `perfis`: é ele que o Supabase confere no
+  // login, e as duas tabelas podem divergir sem ninguém notar.
+  const email = sessao?.user?.email ?? perfil?.email ?? '';
   return (
     <div className="app">
       <aside className="lateral">
@@ -35,11 +40,19 @@ export function Layout({ children }: { children: ReactNode }) {
         <div className="rodape-lateral">
           <div style={{ fontWeight: 600, color: '#fff' }}>{perfil?.nome}</div>
           <div style={{ textTransform: 'capitalize' }}>{perfil?.papel}</div>
-          <button className="botao discreto" style={{ color: '#D7E2F0', paddingLeft: 0, marginTop: 6 }}
-                  onClick={() => void sair()}>Sair</button>
+          {/* Trocar senha mora AQUI e não em Configurações de propósito:
+              Configurações é só para quem administra, e quem mais precisa
+              trocar a própria senha é justamente quem vende. */}
+          <div className="acoes-conta">
+            {email ? (
+              <button className="botao discreto" onClick={() => setTrocando(true)}>Senha</button>
+            ) : null}
+            <button className="botao discreto" onClick={() => void sair()}>Sair</button>
+          </div>
         </div>
       </aside>
       <main className="conteudo">{children}</main>
+      {trocando ? <TrocarSenha email={email} aoFechar={() => setTrocando(false)} /> : null}
     </div>
   );
 }

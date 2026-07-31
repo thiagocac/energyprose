@@ -46,6 +46,13 @@ export const sb = {
     getSession: async () => ({ data: { session: null } }),
     onAuthStateChange: () => ({ data: { subscription: { unsubscribe() {} } } }),
     signOut: async () => ({ error: null }),
+    // Na prévia a senha "certa" é `previa-atual`: assim dá para fotografar
+    // tanto o caminho feliz quanto o erro de senha atual errada.
+    signInWithPassword: async ({ password }: { password: string }) =>
+      (password === 'previa-atual'
+        ? { data: {}, error: null }
+        : { data: null, error: { message: 'Invalid login credentials' } }),
+    updateUser: async () => ({ data: {}, error: null }),
   },
 } as unknown as import('@supabase/supabase-js').SupabaseClient;
 
