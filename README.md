@@ -50,6 +50,18 @@ público; `08`–`15` acrescentaram o módulo comercial:
 | `14_fix_gatilho_lead_after_insert` | correção: o gatilho precisa ser `AFTER INSERT` (ver abaixo) |
 | `15_hardening_grants_funcoes` | fecha o `EXECUTE` que PUBLIC herdava (ver abaixo) |
 
+### Edge Functions
+
+| Função | O que faz |
+|---|---|
+| `gerar-documento-pdf` | Gera o PDF da proposta a partir de `render_document_context`, arquiva no bucket `documentos` e registra a trilha. Ver `supabase/functions/gerar-documento-pdf/LEIA-ME.md`. |
+
+A extensão **`pg_net`** está habilitada: foi o caminho para testar a Edge Function
+de dentro do banco (a rede do sandbox de desenvolvimento não alcança `supabase.co`)
+e é o mecanismo previsto para o aviso de lead novo. Ela é inerte enquanto ninguém
+a chama. Se algum dia sobrar histórico em `net._http_response`, **apague**: essa
+tabela guarda o corpo das requisições, incluindo tokens.
+
 > **Pendência do repositório:** os arquivos `.sql` dessas migrations ainda não estão em
 > `supabase/migrations/`. Elas estão aplicadas em produção e registradas no histórico do
 > próprio Supabase; exportar para cá é o próximo passo, para o repositório voltar a ser
@@ -106,8 +118,16 @@ público. A paridade é responsabilidade dos testes — se mudar uma regra, mude
 ## Pendências conhecidas
 
 - Exportar as migrations `08`–`15` para `supabase/migrations/`.
-- Edge Function que gera o PDF da proposta (layout pronto e aprovado).
-- Telas de Propostas, Contratos, Catálogo e Configurações.
+- Telas de Propostas, Contratos, Catálogo e Configurações. Hoje o PDF é gerado
+  pelo botão "Gerar proposta (PDF)" no card do funil; a tela de Propostas é que
+  vai permitir montar os itens e o bloco do sistema pela interface.
+- Servir as fontes: elas já estão em `publico/fontes/`, mas só passam a valer
+  depois do primeiro deploy. Até lá o PDF sai com as fontes padrão — o cabeçalho
+  `x-fontes` da resposta diz qual foi usada, e a tela avisa.
+- Remover a Edge Function `diag-pdf` pelo painel (já neutralizada, devolve 410).
+- Apagar 1 PDF de teste órfão no bucket `documentos`
+  (`propostas/908a5b5a-.../PROP-2026-0001-R0.pdf`) — o Storage não permite
+  remoção por SQL.
 - Portar Cadastros para o React e aposentar `publico/painel.html` + `publico/app.js`.
 - No painel do Supabase: desligar autocadastro e ligar proteção de senha vazada.
 - Texto jurídico do contrato (o gerador sai como minuta até o aval).

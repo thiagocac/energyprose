@@ -4,6 +4,7 @@ import { Cabecalho } from '../componentes/Layout';
 import { useAuth } from '../lib/auth';
 import { moeda, numero, relativo, linkWhatsapp } from '../lib/formato';
 import { obterFunil, moverLead, leadViraProposta, type Lead, type Etapa } from '../lib/api/crm';
+import { gerarDocumentoPdf, abrirAbaDiferida } from '../lib/api/documentos';
 
 export function Funil() {
   const { pode } = useAuth();
@@ -22,6 +23,24 @@ export function Funil() {
     onSuccess: () => void qc.invalidateQueries({ queryKey: ['funil'] }),
     onError: (e: Error) => setErro(e.message),
   });
+
+  // A aba tem de abrir no clique: se abrisse depois da geração, o bloqueador de
+  // pop-up barraria, porque o gesto do usuário já teria passado.
+  const [gerando, setGerando] = useState<string | null>(null);
+  async function gerarPdf(propostaId: string) {
+    const aba = abrirAbaDiferida('Gerando a proposta…');
+    setGerando(propostaId); setErro('');
+    try {
+      const doc = await gerarDocumentoPdf('proposta', propostaId);
+      aba.mostrar(doc.blob, doc.nomeArquivo);
+      if (doc.fontes === 'padrao') {
+        setErro('PDF gerado, mas com as fontes padrão: o site ainda não está servindo /fontes/*.ttf.');
+      }
+    } catch (e) {
+      aba.falhar((e as Error).message);
+      setErro((e as Error).message);
+    } finally { setGerando(null); }
+  }
 
   const ultimaAtividade = useMemo(
     () => new Map((funil.data?.activities ?? []).map((a) => [a.lead_id, a])),
@@ -69,8 +88,10 @@ export function Funil() {
                     atividade={ultimaAtividade.get(lead.id)?.subject ?? null}
                     podeEditar={pode('escrever')}
                     ocupado={mover.isPending || converter.isPending}
+                    gerando={gerando === lead.proposta_id}
                     aoMover={(etapaId) => mover.mutate({ lead: lead.id, etapa: etapaId })}
                     aoConverter={() => converter.mutate(lead.id)}
+                    aoGerarPdf={() => lead.proposta_id && void gerarPdf(lead.proposta_id)}
                   />
                 ))}
               </div>
@@ -91,9 +112,10 @@ function Kpi({ rot, val, alerta }: { rot: string; val: string; alerta?: boolean 
   );
 }
 
-function CardLead({ lead, etapas, atividade, podeEditar, ocupado, aoMover, aoConverter }: {
-  lead: Lead; etapas: Etapa[]; atividade: string | null; podeEditar: boolean; ocupado: boolean;
-  aoMover: (etapaId: string) => void; aoConverter: () => void;
+function CardLead({ lead, etapas, atividade, podeEditar, ocupado, gerando, aoMover, aoConverter, aoGerarPdf }: {
+  lead: Lead; etapas: Etapa[]; atividade: string | null; podeEditar: boolean;
+  ocupado: boolean; gerando: boolean;
+  aoMover: (etapaId: string) => void; aoConverter: () => void; aoGerarPdf: () => void;
 }) {
   const vencida = !!lead.next_action_at && new Date(lead.next_action_at) < new Date();
   const etapa = etapas.find((e) => e.id === lead.stage_id);
@@ -134,7 +156,9 @@ function CardLead({ lead, etapas, atividade, podeEditar, ocupado, aoMover, aoCon
           </label>
           <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
             {lead.proposta_id
-              ? <span className="pilula bom">proposta criada</span>
+              ? <button className="botao discreto" disabled={gerando} onClick={aoGerarPdf}>
+                  {gerando ? 'Gerando…' : 'Gerar proposta (PDF)'}
+                </button>
               : <button className="botao discreto" disabled={ocupado} onClick={aoConverter}>Criar proposta</button>}
             {lead.phone ? (
               <a className="botao discreto" target="_blank" rel="noreferrer"
