@@ -247,7 +247,7 @@ export function Contratos() {
                   const lacunas = lacunasDoContrato(c);
                   return (
                     <tr key={c.id}>
-                      <td>
+                      <td className="num">
                         <b>{c.numero ?? '—'}</b>
                         {c.proposta_numero
                           ? <div className="meta">de {c.proposta_numero}</div>

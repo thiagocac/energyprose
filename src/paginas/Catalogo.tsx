@@ -16,6 +16,9 @@ const COBRANCAS = [
   ['avulso', 'Avulso'],
 ] as const;
 const CATEGORIAS = [['usina', 'Usina'], ['manutencao', 'Manutenção'], ['servico', 'Serviço']] as const;
+// O enum do banco não é rótulo: a tela imprimia "modulo", "inversor".
+const TIPOS_EQUIP = [['modulo', 'Módulo'], ['inversor', 'Inversor'],
+                     ['bateria', 'Bateria'], ['outro', 'Outro']] as const;
 const rot = (lista: readonly (readonly [string, string])[], v: string) =>
   lista.find((x) => x[0] === v)?.[1] ?? v;
 
@@ -98,7 +101,7 @@ export function Catalogo() {
               <tbody>
                 {(equipamentos.data ?? []).map((e) => (
                   <tr key={e.id} style={{ opacity: e.ativo ? 1 : 0.55 }}>
-                    <td><span className="pilula">{e.tipo}</span></td>
+                    <td><span className="pilula">{rot(TIPOS_EQUIP, e.tipo)}</span></td>
                     <td><b>{e.fabricante}</b><div className="meta">{e.modelo}</div></td>
                     <td className="dir">
                       {e.potencia_wp ? `${numero(e.potencia_wp)} Wp` : e.potencia_kw ? `${numero(e.potencia_kw, 2)} kW` : '—'}

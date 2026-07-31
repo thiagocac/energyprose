@@ -19,6 +19,10 @@ export type PropostaLinha = {
   public_first_view_at: string | null;
   public_last_view_at: string | null;
   public_views: number;
+  /** O que o cliente escreveu ao aceitar ou recusar. É o dado mais valioso do
+   *  funil e ficava guardado sem nenhuma tela para lê-lo. */
+  response_comment: string | null;
+  public_action_at: string | null;
   cliente: string | null; cidade: string | null;
   potencia_kwp: number | null; modulo_qtd: number | null;
 };
@@ -54,6 +58,7 @@ const SELECAO = `
   id, numero, revision, tipo, linha, titulo, validade, status, valor_total, cadastro_id,
   contrato_id, followup_at, sent_at, pdf_path,
   public_first_view_at, public_last_view_at, public_views,
+  response_comment, public_action_at,
   cadastros ( nome, cidade ),
   proposta_sistema ( potencia_instalada_kwp, modulo_qtd )`;
 
@@ -80,6 +85,8 @@ export async function listarPropostas(): Promise<PropostaLinha[]> {
       public_first_view_at: (linha.public_first_view_at as string) ?? null,
       public_last_view_at: (linha.public_last_view_at as string) ?? null,
       public_views: Number(linha.public_views) || 0,
+      response_comment: (linha.response_comment as string) ?? null,
+      public_action_at: (linha.public_action_at as string) ?? null,
       cliente: cad?.nome ?? null, cidade: cad?.cidade ?? null,
       potencia_kwp: sis?.potencia_instalada_kwp ?? null,
       modulo_qtd: sis?.modulo_qtd ?? null,

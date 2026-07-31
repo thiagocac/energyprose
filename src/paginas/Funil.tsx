@@ -95,9 +95,13 @@ export function Funil() {
       {erro ? <div className="aviso erro" style={{ marginBottom: 16 }}>{erro}</div> : null}
 
       <div className="kpis">
+        {/* "Fechado no mês" já vinha do banco e nenhuma tela mostrava — é o
+            número que o dono abre o sistema para ver. E "pipeline bruto" e
+            "ponderado" são jargão de CRM: quem vende fala em valor. */}
+        <Kpi rot="Fechado no mês" val={numero(d.kpis.ganhos_mes)} />
         <Kpi rot="Oportunidades abertas" val={numero(d.kpis.open)} />
-        <Kpi rot="Pipeline bruto" val={moeda(d.kpis.pipeline_value)} />
-        <Kpi rot="Pipeline ponderado" val={moeda(d.kpis.weighted_value)} />
+        <Kpi rot="Valor em negociação" val={moeda(d.kpis.pipeline_value)} />
+        <Kpi rot="Ajustado pela chance" val={moeda(d.kpis.weighted_value)} />
         <Kpi rot="Ações vencidas" val={numero(d.kpis.overdue_actions)} alerta={d.kpis.overdue_actions > 0} />
         <Kpi rot="Novos em 7 dias" val={numero(d.kpis.novos_7d)} />
       </div>

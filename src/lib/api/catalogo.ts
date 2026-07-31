@@ -32,6 +32,11 @@ export type CadastroRef = {
   consumo_medio_kwh: number | null; valor_medio_conta: number | null;
   tipo_telhado: string | null; zona: string | null;
   whatsapp: string | null; email: string | null;
+  // O cliente já entregou estes quatro no formulário público e eles nunca
+  // chegavam à tela de propostas — quem precifica trabalhava sem ver o preço
+  // que o concorrente já deu, e quem homologa sem a concessionária.
+  concessionaria: string | null; numero_instalacao: string | null;
+  kit_descricao: string | null; valor_proposta: number | null;
 };
 
 export type ConfigEmpresa = {
@@ -75,7 +80,7 @@ export async function listarEquipamentos(): Promise<Equipamento[]> {
 
 export async function listarCadastrosRef(): Promise<CadastroRef[]> {
   const { data, error } = await sb.from('cadastros')
-    .select('id, nome, cidade, uf, consumo_medio_kwh, valor_medio_conta, tipo_telhado, zona, whatsapp, email')
+    .select('id, nome, cidade, uf, consumo_medio_kwh, valor_medio_conta, tipo_telhado, zona, whatsapp, email, concessionaria, numero_instalacao, kit_descricao, valor_proposta')
     .neq('status', 'rascunho').order('nome');
   if (error) throw new Error(error.message);
   return (data ?? []) as unknown as CadastroRef[];

@@ -251,8 +251,13 @@ export function Propostas() {
     setOcupado(`enviar:${p.id}`); setErro(''); setAviso('');
     try {
       const dados = await obterProposta(p.id);
-      const fone = dados.recipient_whatsapp || '';
-      if (!fone) throw new Error('Sem WhatsApp do cliente. Edite a proposta e informe o número.');
+      // O número do cadastro é o mesmo número. Reclamar de um dado que o
+      // sistema já tem custava três passos: erro, editar, digitar, salvar.
+      const doCadastro = (cadastros.data ?? []).find((c) => c.id === p.cadastro_id)?.whatsapp;
+      const fone = dados.recipient_whatsapp || doCadastro || '';
+      if (!fone) {
+        throw new Error('Sem WhatsApp nem na proposta nem no cadastro do cliente. Informe o número para poder enviar.');
+      }
       const r = await prepararEnvio(p.id, dados.recipient_email, dados.recipient_name, fone);
 
       // O PDF é gerado DEPOIS de preparar o envio, que é quando a revisão fica
@@ -279,6 +284,22 @@ export function Propostas() {
         : 'Proposta enviada, mas o PDF não pôde ser gerado — a mensagem foi sem o link de download.');
       void qc.invalidateQueries({ queryKey: ['propostas'] });
     } catch (e) { setErro((e as Error).message); } finally { setOcupado(null); }
+  }
+
+  /**
+   * Duplicar e já abrir a cópia. Antes a tela dizia "Duplicada como novo
+   * rascunho" e a pessoa ia caçar o registro na lista — justamente quando
+   * acabou de ter uma proposta recusada por preço e quer refazer.
+   */
+  async function duplicarEAbrir(id: string) {
+    setOcupado(`dup:${id}`); setErro(''); setAviso('');
+    try {
+      const novo = await duplicarProposta(id);
+      await qc.invalidateQueries({ queryKey: ['propostas'] });
+      setOcupado(null);
+      await abrir(novo);
+      setAviso('Cópia aberta como novo rascunho. Ajuste o que precisar e salve.');
+    } catch (e) { setErro((e as Error).message); setOcupado(null); }
   }
 
   async function acao(chave: string, fn: () => Promise<unknown>, msg: string) {
@@ -357,7 +378,7 @@ export function Propostas() {
               <tbody>
                 {listaFiltrada.map((p) => (
                   <tr key={p.id}>
-                    <td>
+                    <td className="num">
                       <b>{p.numero ?? '—'}</b>
                       {p.revision > 0 ? <div className="meta">revisão {p.revision}</div> : null}
                     </td>
@@ -389,8 +410,8 @@ export function Propostas() {
                             </button> : null}
                         {escrever
                           ? <button className="botao discreto" disabled={!!ocupado}
-                              onClick={() => void acao(`dup:${p.id}`, () => duplicarProposta(p.id), 'Duplicada como novo rascunho.')}>
-                              Duplicar
+                              onClick={() => void duplicarEAbrir(p.id)}>
+                              {ocupado === `dup:${p.id}` ? 'Duplicando…' : 'Duplicar'}
                             </button> : null}
                         {pode('converter') && p.status === 'aceita' && !p.contrato_id && acharLinha(p.linha)?.contrato_tipo
                           ? <button className="botao discreto" disabled={!!ocupado}
@@ -430,7 +451,18 @@ export function Propostas() {
             <div className="painel-corpo">
               <div className="grade2">
                 <label className="campo">
-                  <span>Cliente *</span>
+                  <span>
+                    Cliente *
+                    {/* A conta de luz e as fotos do telhado chegam pelo
+                        formulário público e só o painel de cadastros as mostra.
+                        Link comum, sem reescrever o visualizador. */}
+                    {form.cadastro_id ? (
+                      <a href={`/cadastros/${form.cadastro_id}`} target="_blank" rel="noopener"
+                         style={{ float: 'right', fontWeight: 500 }}>
+                        conta de luz e documentos ↗
+                      </a>
+                    ) : null}
+                  </span>
                   <select value={form.cadastro_id} onChange={(e) => setForm({ ...form, cadastro_id: e.target.value })}>
                     <option value="">Selecione…</option>
                     {(cadastros.data ?? []).map((c) => (
@@ -459,6 +491,18 @@ export function Propostas() {
                 <div className="aviso info" style={{ marginBottom: 16 }}>
                   Conta do cliente: {cliente.consumo_medio_kwh ? `${numero(cliente.consumo_medio_kwh)} kWh/mês` : 'consumo não informado'}
                   {cliente.valor_medio_conta ? ` · ${moeda(cliente.valor_medio_conta)}` : ''}
+                  {cliente.concessionaria ? ` · ${cliente.concessionaria}` : ''}
+                  {cliente.numero_instalacao ? ` · instalação ${cliente.numero_instalacao}` : ''}
+                  {/* O preço que o concorrente já deu. Precificar sem ver isso
+                      é trabalhar no escuro com a informação a um clique. */}
+                  {cliente.valor_proposta || cliente.kit_descricao ? (
+                    <div style={{ marginTop: 6 }}>
+                      {cliente.valor_proposta
+                        ? <b>Cliente já tem proposta de {moeda(cliente.valor_proposta)}</b>
+                        : <span>Kit que o cliente citou:</span>}
+                      {cliente.kit_descricao ? ` ${cliente.valor_proposta ? '— ' : ''}${cliente.kit_descricao}` : ''}
+                    </div>
+                  ) : null}
                   {sugestao ? <> · <b>sugestão: {sugestao} módulos</b>{' '}
                     <button className="botao discreto" style={{ padding: '2px 8px' }}
                             onClick={() => setForm({ ...form, modulo_qtd: String(sugestao), kwpManual: false, geracaoManual: false })}>
@@ -636,7 +680,19 @@ function KpiP({ rot, val, alerta }: { rot: string; val: string; alerta?: boolean
  */
 function Sinal({ p }: { p: PropostaLinha }) {
   const a = acompanhar(p);
-  if (a.situacao === 'nao_enviada' || a.situacao === 'respondida') {
+  if (a.situacao === 'respondida') {
+    return (
+      <>
+        <span className="meta">
+          {p.status === 'aceita' ? 'Aceita' : 'Recusada'} em {dataBr(p.public_action_at)}
+        </span>
+        {/* O que o cliente escreveu ao responder é o dado mais útil do funil e
+            ficava guardado no banco sem nenhuma tela para mostrá-lo. */}
+        {p.response_comment ? <div className="recado">“{p.response_comment}”</div> : null}
+      </>
+    );
+  }
+  if (a.situacao === 'nao_enviada') {
     return <span className="meta">vence {dataBr(p.validade)}</span>;
   }
   return (

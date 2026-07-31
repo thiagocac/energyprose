@@ -54,12 +54,28 @@ a { color: var(--navy); }
 
 @media (max-width: 860px) {
   .app { flex-direction: column; }
-  .lateral { width: auto; flex: none; flex-direction: row; align-items: center; overflow-x: auto; padding: 10px 12px; }
+  .lateral {
+    width: auto; flex: none; flex-direction: row; align-items: center;
+    flex-wrap: wrap; row-gap: 8px; padding: 10px 12px;
+  }
   .marca { padding: 0 14px 0 4px; }
   .marca span { display: none; }
-  .nav { display: flex; gap: 4px; }
+  .marca b { white-space: nowrap; }
+  /* O menu ganha a segunda linha em vez de empurrar o resto para fora da tela:
+     com `overflow-x: auto` na barra, tudo que passasse da largura ficava
+     inalcançável — inclusive o Sair. */
+  .nav { display: flex; gap: 4px; flex: 1 1 100%; order: 3; overflow-x: auto; }
   .nav a { white-space: nowrap; }
-  .rodape-lateral { display: none; }
+  /* O rodapé lateral sumia por completo, e em visita a vendedora ficava sem
+     como deslogar do celular. Aqui ele vira o canto direito da primeira
+     linha da barra — o lugar onde todo aplicativo põe a conta. */
+  .rodape-lateral {
+    margin-top: 0; margin-left: auto; padding: 0 4px 0 12px;
+    border-top: 0; border-left: 1px solid rgba(255,255,255,.12);
+    display: flex; align-items: center; gap: 10px; white-space: nowrap;
+  }
+  .rodape-lateral > div:nth-child(2) { display: none; }   /* o papel cabe na tela larga */
+  .rodape-lateral .botao { margin-top: 0 !important; padding-left: 8px !important; }
   .conteudo { padding: 18px 16px 48px; }
 }
 
@@ -156,6 +172,9 @@ h1 { font-size: 25px; margin: 6px 0 4px; font-weight: 600; letter-spacing: -.01e
 .tabela tr:hover td { background: #FAFCFE; }
 .tabela .dir, .tabela th.dir { text-align: right; }
 .tabela .meta { font-size: 11.5px; color: var(--suave); }
+/* Número do documento não quebra: com oito colunas o navegador espremia
+   "PRO-2026-0031" em três linhas, e é o código que se lê no telefone. */
+.tabela .num { white-space: nowrap; }
 
 /* ===== Painel lateral (formulário) ===== */
 .painel-fundo {
@@ -291,3 +310,40 @@ fieldset[disabled] input, fieldset[disabled] select, fieldset[disabled] textarea
 }
 .barra-filtro .filtro-marca:hover { background: var(--fundo); }
 .barra-filtro .filtro-marca input { accent-color: var(--quente-medio); cursor: pointer; }
+
+/* Recado do cliente ao aceitar ou recusar — aspas e recuo para ficar claro que
+   é a voz dele, não do sistema. */
+.recado {
+  margin-top: 4px; font-size: 12px; font-style: italic; color: var(--tinta);
+  border-left: 2px solid var(--quente-medio); padding-left: 7px; max-width: 34ch;
+}
+
+/* Botão de contato na página do cliente. Fica largo e centralizado porque, para
+   quem tem dúvida, é o caminho principal — não um detalhe do rodapé. */
+.falar-conosco {
+  display: flex; align-items: center; justify-content: center; gap: 8px;
+  width: 100%; text-decoration: none; margin-bottom: 4px;
+}
+
+/* ===========================================================================
+   Celular — POR ÚLTIMO, de propósito.
+   Este bloco já existiu no topo do arquivo e não fazia absolutamente nada:
+   media query não soma especificidade, então `.funil { grid-auto-flow: column }`
+   lá embaixo vencia por vir depois. O funil continuava em rolagem lateral no
+   celular e ninguém percebia porque o CSS "estava lá". Regra de ouro: ajuste
+   de tela estreita mora no fim do arquivo.
+   =========================================================================== */
+@media (max-width: 700px) {
+  /* Seis etapas em rolagem lateral viram uma caça ao card. Empilhado, o dedo
+     rola para baixo, que é o gesto que o celular já pede. O arraste se perde,
+     mas o seletor de etapa dentro do card faz o mesmo trabalho. */
+  .funil { grid-auto-flow: row; grid-auto-columns: auto; overflow-x: visible; }
+  .funil .coluna { max-height: none; }
+  /* Dois cartões por linha; o valor em reais não cabe em 23px nessa largura. */
+  .kpis { grid-template-columns: 1fr 1fr; gap: 10px; }
+  .kpi { padding: 12px 13px; }
+  .kpi .val { font-size: 19px; }
+  .kpi .rot { font-size: 9.5px; letter-spacing: .08em; }
+  .tabela { font-size: 12.5px; }
+  .tabela th, .tabela td { padding: 9px 8px; }
+}
