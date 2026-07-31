@@ -10,7 +10,7 @@ const MENU = [
 ];
 
 export function Layout({ children }: { children: ReactNode }) {
-  const { perfil, pode, sair } = useAuth();
+  const { perfil, sair } = useAuth();
   return (
     <div className="app">
       <aside className="lateral">
@@ -30,7 +30,7 @@ export function Layout({ children }: { children: ReactNode }) {
           {/* Cadastros e novo cadastro seguem no painel anterior até as telas
               serem portadas. A sessão é a mesma, então a troca é transparente. */}
           <a href="/cadastros">Cadastros</a>
-          {pode('config') ? <NavLink to="/configuracoes" className={({ isActive }) => (isActive ? 'ativo' : '')}>Configurações</NavLink> : null}
+          <NavLink to="/configuracoes" className={({ isActive }) => (isActive ? 'ativo' : '')}>Configurações</NavLink>
         </nav>
         <div className="rodape-lateral">
           <div style={{ fontWeight: 600, color: '#fff' }}>{perfil?.nome}</div>

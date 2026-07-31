@@ -9,6 +9,23 @@ Site e sistema da **Energy PRO**, num único domínio (`energyprose.netlify.app`
 | `/` | Formulário público de cadastro — o cliente preenche sozinho, sem login | `publico/` (estático, sem build) |
 | `/p/:token` | Aceite da proposta pelo cliente, por link seguro | `src/paginas/PropostaPublica.tsx` |
 | `/login` `/crm` `/propostas` `/contratos` `/catalogo` `/configuracoes` | **Energy PRO Gestão** — CRM, propostas e contratos | `src/` (React + Vite) |
+
+### O ciclo comercial, ponta a ponta
+
+```
+cadastro no site  →  lead no funil (automático, gatilho)
+                  →  proposta (kWp e geração calculados de src/lib/solar.ts)
+                  →  PDF (Edge Function, layout fixo em código)
+                  →  envio por WhatsApp com link /p/<token>
+                  →  cliente aceita ou recusa (decisão imutável)
+                  →  contrato
+```
+
+**Dois números são calculados e podem ser sobrescritos**: potência instalada e
+geração média. Assim que o vendedor digita um deles à mão, o cálculo automático
+para de sobrescrever aquele campo — ele às vezes ajusta a geração para o número
+que combinou com o cliente, e o sistema não pode desfazer isso a cada tecla.
+A tela mostra "automática" ou "manual" ao lado do rótulo.
 | `/novo` `/cadastros` `/cadastros/:id` | Painel de cadastros anterior, ainda no ar | `publico/painel.html` + `publico/app.js` |
 
 As duas aplicações usam **o mesmo Supabase Auth e a mesma tabela `perfis`**. A sessão fica
@@ -87,6 +104,21 @@ select proname, coalesce(array_to_string(proacl::text[], ' | '), 'SEM ACL → PU
 
 Uma ACL com `=X/postgres` significa que PUBLIC executa.
 
+### Uma falha silenciosa que o front precisa tratar
+
+No Supabase, um **UPDATE barrado pelo RLS não devolve erro** — apenas afeta zero
+linhas. Um `if (error)` sozinho, então, reporta sucesso quando nada foi gravado.
+Toda escrita por tabela neste app usa `.select()` e confere se voltou linha:
+
+```ts
+const { data, error } = await sb.from('config_empresa').update({...}).eq('id', true).select('id');
+if (error) throw new Error(error.message);
+if (!data?.length) throw new Error('Nada foi salvo: só um administrador pode alterar.');
+```
+
+Vale para `config_empresa` (só admin), `servicos_catalogo` e `equipamentos_catalogo`
+(admin e vendedor). INSERT é diferente: esse **estoura** quando o RLS barra.
+
 ### Segurança, em uma frase
 
 O role `anon` não tem policy nenhuma nas tabelas. As únicas portas públicas são funções
@@ -118,9 +150,7 @@ público. A paridade é responsabilidade dos testes — se mudar uma regra, mude
 ## Pendências conhecidas
 
 - Exportar as migrations `08`–`15` para `supabase/migrations/`.
-- Telas de Propostas, Contratos, Catálogo e Configurações. Hoje o PDF é gerado
-  pelo botão "Gerar proposta (PDF)" no card do funil; a tela de Propostas é que
-  vai permitir montar os itens e o bloco do sistema pela interface.
+- Tela de Contratos + PDF do contrato (depende do texto jurídico).
 - Servir as fontes: elas já estão em `publico/fontes/`, mas só passam a valer
   depois do primeiro deploy. Até lá o PDF sai com as fontes padrão — o cabeçalho
   `x-fontes` da resposta diz qual foi usada, e a tela avisa.

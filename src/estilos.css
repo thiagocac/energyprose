@@ -143,3 +143,83 @@ h1 { font-size: 25px; margin: 6px 0 4px; font-weight: 600; letter-spacing: -.01e
 .publica .linha:last-child { border-bottom: 0; }
 .publica .linha b { text-align: right; }
 .publica .preco { font-size: 34px; font-weight: 700; color: var(--navy-fundo); letter-spacing: -.02em; }
+
+/* ===== Tabela ===== */
+.tabela { width: 100%; border-collapse: collapse; font-size: 13.5px; }
+.tabela th {
+  text-align: left; padding: 11px 14px; font-size: 10.5px; letter-spacing: .1em;
+  text-transform: uppercase; color: var(--suave); font-weight: 700;
+  border-bottom: 1px solid var(--linha); white-space: nowrap;
+}
+.tabela td { padding: 11px 14px; border-bottom: 1px solid var(--linha); vertical-align: middle; }
+.tabela tr:last-child td { border-bottom: 0; }
+.tabela tr:hover td { background: #FAFCFE; }
+.tabela .dir, .tabela th.dir { text-align: right; }
+.tabela .meta { font-size: 11.5px; color: var(--suave); }
+
+/* ===== Painel lateral (formulário) ===== */
+.painel-fundo {
+  position: fixed; inset: 0; background: rgba(9,20,38,.42);
+  display: flex; justify-content: flex-end; z-index: 40;
+}
+.painel {
+  width: min(720px, 100%); background: var(--branco); display: flex; flex-direction: column;
+  box-shadow: -12px 0 40px rgba(9,20,38,.18);
+}
+.painel > header {
+  display: flex; align-items: center; justify-content: space-between; gap: 12px;
+  padding: 16px 22px; border-bottom: 1px solid var(--linha); flex: 0 0 auto;
+}
+.painel > header h2 { margin: 0; font-size: 17px; font-weight: 600; }
+.painel-corpo { flex: 1; overflow-y: auto; padding: 20px 22px; }
+.painel > footer {
+  display: flex; justify-content: flex-end; gap: 10px;
+  padding: 14px 22px; border-top: 1px solid var(--linha); flex: 0 0 auto; background: var(--fundo);
+}
+.grade2 { display: grid; grid-template-columns: 1fr 1fr; gap: 0 14px; }
+@media (max-width: 620px) { .grade2 { grid-template-columns: 1fr; } .painel { width: 100%; } }
+
+.bloco { border-top: 1px solid var(--linha); padding-top: 16px; margin-top: 6px; }
+.bloco h3 { font-size: 14px; margin: 0 0 12px; font-weight: 600; }
+.sel-inline {
+  padding: 9px 12px; border: 1px solid var(--linha); border-radius: 9px;
+  font: inherit; font-size: 13.5px; background: #fff; min-width: 220px;
+}
+.linha-item {
+  display: grid; grid-template-columns: 1fr 74px 104px 74px 104px 34px;
+  gap: 6px; align-items: center; margin-bottom: 7px;
+}
+.linha-item input {
+  padding: 8px 10px; border: 1px solid var(--linha); border-radius: 8px; font: inherit; font-size: 13px; width: 100%;
+}
+.linha-item .tot { font-weight: 600; font-size: 13px; text-align: right; }
+@media (max-width: 620px) {
+  .linha-item { grid-template-columns: 1fr 1fr; }
+  .linha-item .tot { grid-column: 1 / -1; text-align: left; }
+}
+
+/* ===== Abas ===== */
+.abas { display: flex; gap: 4px; margin-bottom: 16px; border-bottom: 1px solid var(--linha); }
+.abas button {
+  background: none; border: 0; border-bottom: 2px solid transparent; padding: 9px 14px;
+  font: inherit; font-size: 14px; font-weight: 600; color: var(--suave); cursor: pointer;
+}
+.abas button:hover { color: var(--navy); }
+.abas button.on { color: var(--navy-fundo); border-bottom-color: var(--quente); }
+
+/* ===== Lista editável (blocos do PDF) ===== */
+.lista-cab, .lista-linha { display: grid; gap: 6px; align-items: center; }
+.lista-cab {
+  font-size: 10.5px; letter-spacing: .08em; text-transform: uppercase;
+  color: var(--suave); font-weight: 700; margin-bottom: 6px;
+}
+.lista-linha { margin-bottom: 6px; }
+.lista-linha input, .lista-linha select {
+  padding: 8px 10px; border: 1px solid var(--linha); border-radius: 8px;
+  font: inherit; font-size: 13px; width: 100%; background: #fff;
+}
+fieldset[disabled] input, fieldset[disabled] select, fieldset[disabled] textarea { background: var(--fundo); color: var(--suave); }
+@media (max-width: 620px) {
+  .lista-cab { display: none; }
+  .lista-linha { grid-template-columns: 1fr !important; padding: 10px; border: 1px solid var(--linha); border-radius: 10px; }
+}

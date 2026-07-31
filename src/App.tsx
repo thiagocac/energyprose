@@ -3,6 +3,9 @@ import { useAuth } from './lib/auth';
 import { Layout, Cabecalho } from './componentes/Layout';
 import { Entrada } from './paginas/Entrada';
 import { Funil } from './paginas/Funil';
+import { Propostas } from './paginas/Propostas';
+import { Catalogo } from './paginas/Catalogo';
+import { Configuracoes } from './paginas/Configuracoes';
 import { PropostaPublica } from './paginas/PropostaPublica';
 
 // Telas ainda por construir — ficam explícitas em vez de sumirem do menu, para
@@ -36,10 +39,10 @@ export function App() {
             <Layout>
               <Routes>
                 <Route path="/crm" element={<Funil />} />
-                <Route path="/propostas" element={<EmBreve titulo="Propostas" sub="Itens do catálogo, bloco do sistema com kWp e geração calculados, PDF e envio por link." />} />
+                <Route path="/propostas" element={<Propostas />} />
                 <Route path="/contratos" element={<EmBreve titulo="Contratos" sub="Contrato gerado a partir da proposta aceita, com as cláusulas preenchidas." />} />
-                <Route path="/catalogo" element={<EmBreve titulo="Catálogo" sub="Serviços vendidos e equipamentos (módulos e inversores, com suas garantias)." />} />
-                <Route path="/configuracoes" element={<EmBreve titulo="Configurações" sub="Dados da empresa, prazos, HSP/PR e os textos fixos que entram na proposta." />} />
+                <Route path="/catalogo" element={<Catalogo />} />
+                <Route path="/configuracoes" element={<Configuracoes />} />
                 <Route path="*" element={<Navigate to="/crm" replace />} />
               </Routes>
             </Layout>
