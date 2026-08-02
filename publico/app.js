@@ -938,12 +938,6 @@ async function telaFicha(id) {
     <section class="card">
       <div class="card-head"><span class="card-num">4</span><h2>Documentos</h2></div>
       <div class="card-body">
-        <!-- ARMADILHA CORRIGIDA: esta lista era `SLOTS.filter(s => porSlot[s.k])`
-             — só desenhava o que TEM arquivo. Estes cinco anexos são o dossiê
-             da homologação, e o que interessa na hora de homologar é
-             justamente o que FALTA. Quem abria a ficha via o que tinha, não
-             via o buraco, e descobria a CNH ausente com a usina já instalada e
-             sem gerar crédito. Agora os cinco aparecem sempre. -->
         <div class="anexos-contagem">
           ${SLOTS.filter(s => porSlot[s.k]).length} de ${SLOTS.length} documentos
         </div>

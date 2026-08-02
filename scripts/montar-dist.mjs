@@ -7,6 +7,7 @@
 // ============================================================================
 import { cp, readdir, stat, access } from 'node:fs/promises';
 import { join } from 'node:path';
+import { execFileSync } from 'node:child_process';
 
 const RAIZ = new URL('..', import.meta.url).pathname;
 const ORIGEM = join(RAIZ, 'publico');
@@ -23,6 +24,30 @@ if (!await existe(join(DESTINO, 'painel', 'index.html'))) {
   console.error('✗ dist/painel/index.html não existe — o build do Vite não rodou.');
   process.exit(1);
 }
+
+// ---------------------------------------------------------------------------
+// ARMADILHA QUE ESTE BLOCO PAGA: o site público não passa por bundler nem por
+// TypeScript — os .js são copiados como estão. Quer dizer que `npm run build`
+// inteiro passava com um erro de sintaxe dentro deles, e o painel de Cadastros
+// ia ao ar sem carregar nada.
+//
+// Foi o que aconteceu: um comentário HTML que eu escrevi DENTRO de um template
+// literal continha crases; elas fecharam o template no meio e quebraram o
+// arquivo. `tsc`, `vite build` e os testes passaram todos.
+//
+// `node --check` é a rede que faltava. Custa milissegundos.
+// ---------------------------------------------------------------------------
+const scripts = (await readdir(ORIGEM)).filter((n) => n.endsWith('.js'));
+for (const nome of scripts) {
+  try {
+    execFileSync(process.execPath, ['--check', join(ORIGEM, nome)], { stdio: 'pipe' });
+  } catch (e) {
+    console.error(`✗ erro de sintaxe em publico/${nome} — o site público iria ao ar quebrado:\n`);
+    console.error(String(e.stderr ?? e.message).trim());
+    process.exit(1);
+  }
+}
+console.log(`✓ ${scripts.length} scripts do site público sem erro de sintaxe`);
 
 let copiados = 0;
 for (const nome of await readdir(ORIGEM)) {
