@@ -127,6 +127,32 @@ export function Propostas() {
     };
   }, [propostas.data]);
 
+  /**
+   * Resultado, e não estoque.
+   *
+   * Os dez indicadores que existiam mediam quantas propostas estão em cada
+   * situação — nenhum media se a empresa está vendendo. Faltavam as três
+   * respostas que se dá numa conversa sobre o negócio: de cada dez que
+   * respondem, quantas aceitam; quanto vale uma venda; quanto entrou.
+   *
+   * A conta é sobre a lista que já está carregada — nada volta ao banco. O
+   * denominador são as RESPONDIDAS, não as enviadas: proposta que ainda está
+   * na mão do cliente não é perda, e contá-la afundaria a taxa sem motivo.
+   */
+  const resultado = useMemo(() => {
+    const todas = propostas.data ?? [];
+    const aceitas = todas.filter((p) => p.status === 'aceita');
+    const respondidas = aceitas.length + todas.filter((p) => p.status === 'recusada').length;
+    const soma = aceitas.reduce((s, p) => s + p.valor_total, 0);
+    return {
+      respondidas,
+      aceitas: aceitas.length,
+      taxa: respondidas ? Math.round((aceitas.length / respondidas) * 100) : 0,
+      ticket: aceitas.length ? soma / aceitas.length : 0,
+      soma,
+    };
+  }, [propostas.data]);
+
   // ===== Cálculo automático de kWp e geração =====
   // Só recalcula enquanto o usuário não digitou o valor à mão: o vendedor às
   // vezes ajusta a geração para o número que combinou com o cliente, e o
@@ -402,6 +428,18 @@ export function Propostas() {
               {envio.abriu ? 'Abrir o WhatsApp de novo' : 'Abrir o WhatsApp'}
             </a>
           </div>
+        </div>
+      ) : null}
+
+      {/* Resultado primeiro, acompanhamento depois: o dono abre esta tela para
+          saber se está vendendo, não quantas propostas estão em trânsito.
+          Só aparece quando alguém já respondeu — antes disso seria 0% de nada. */}
+      {resultado.respondidas ? (
+        <div className="kpis">
+          <KpiP rot="Taxa de aceite" val={`${resultado.taxa}%`}
+                nota={`${resultado.aceitas} de ${resultado.respondidas} respondidas`} />
+          <KpiP rot="Ticket médio" val={moeda(resultado.ticket)} nota="média das aceitas" />
+          <KpiP rot="Total aceito" val={moeda(resultado.soma)} nota="soma das propostas aceitas" />
         </div>
       ) : null}
 
@@ -761,11 +799,16 @@ export function Propostas() {
   );
 }
 
-function KpiP({ rot, val, alerta }: { rot: string; val: string; alerta?: boolean }) {
+function KpiP({ rot, val, alerta, nota }: {
+  rot: string; val: string; alerta?: boolean; nota?: string;
+}) {
   return (
     <div className="cartao kpi">
       <div className="rot">{rot}</div>
       <div className={`val${alerta ? ' alerta' : ''}`}>{val}</div>
+      {/* A nota diz de onde saiu o número. "62%" sozinho convida a interpretar
+          errado; "5 de 8 respondidas" não deixa dúvida sobre o denominador. */}
+      {nota ? <div className="nota">{nota}</div> : null}
     </div>
   );
 }

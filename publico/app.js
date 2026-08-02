@@ -175,7 +175,7 @@ const CamposTexto = [
   { n: 'consumo_medio_kwh', rot: 'Consumo médio (kWh/mês)', mask: maskInt },
   { n: 'valor_medio_conta', rot: 'Valor médio da conta',    mask: maskMoeda, ph: 'R$ 0,00' },
   { n: 'kit_descricao',     rot: 'Kit de placas e inversor' },
-  { n: 'valor_proposta',    rot: 'Valor da proposta',       mask: maskMoeda, ph: 'R$ 0,00' }
+  { n: 'valor_proposta',    rot: 'Orçamento do concorrente', mask: maskMoeda, ph: 'R$ 0,00' }
 ];
 
 const TOTAL_ITENS = 13 + SLOTS.length; // mesma contagem do formulário original
@@ -540,7 +540,7 @@ function telaFormulario() {
     bloco('3. SISTEMA', [
       ['Área', r.zona && (r.zona === 'urbana' ? 'Urbana' : 'Rural')],
       ['Tipo de telhado', r.tipo_telhado && rotTelhado(r.tipo_telhado)],
-      ['Kit', r.kit_descricao], ['Valor da proposta', r.valor_proposta && fmtMoeda(r.valor_proposta)]
+      ['Kit', r.kit_descricao], ['Orçamento do concorrente', r.valor_proposta && fmtMoeda(r.valor_proposta)]
     ]);
     L.push('', '4. DOCUMENTOS', nArq ? `${nArq} arquivo(s) anexado(s)` : 'Nenhum arquivo anexado');
     L.push('', `Ficha completa: ${location.origin}/cadastros/${r.id}`);
@@ -684,7 +684,7 @@ async function carregar() {
       ${th('concessionaria', 'Concessionária')}
       ${th('consumo_medio_kwh', 'Consumo', 'num')}
       ${th('valor_medio_conta', 'Conta', 'num')}
-      ${th('valor_proposta', 'Proposta', 'num')}
+      ${th('valor_proposta', 'Concorrente', 'num')}
       <th>Anexos</th>
       ${th('origem', 'Origem')}
       ${th('status', 'Status')}
@@ -741,15 +741,24 @@ async function desenharKPIs() {
     sb.from('cadastros').select('valor_proposta').not('valor_proposta', 'is', null)
   ]);
 
+  // ARMADILHA CORRIGIDA: `valor_proposta` é o preço que o CONCORRENTE já deu ao
+  // cliente — o formulário público pergunta isso de propósito, na seção do
+  // sistema, ao lado do anexo "Proposta — se já houver". Este indicador se
+  // chamava "Proposta média", que é o nome do ticket da própria empresa. Era o
+  // único número de dinheiro agregado do sistema e ia assim para a planilha de
+  // reunião: quem decidisse preço ou meta por ele estaria decidindo pelo dado
+  // do concorrente. O ticket de verdade sai de `propostas.valor_total` das
+  // aceitas, e agora está na tela de Propostas.
   const vals = (props.data || []).map(r => Number(r.valor_proposta));
-  const ticket = vals.length ? vals.reduce((a, b) => a + b, 0) / vals.length : null;
+  const media = vals.length ? vals.reduce((a, b) => a + b, 0) / vals.length : null;
 
   box.innerHTML = `
     <div class="kpi"><span>Este mês</span><b>${mes.count ?? 0}</b></div>
     <div class="kpi kpi-cliente"><span>Do cliente (mês)</span><b>${doCliente.count ?? 0}</b></div>
     <div class="kpi"><span>Em aberto</span><b>${analise.count ?? 0}</b></div>
     <div class="kpi"><span>Fechados</span><b>${fechados.count ?? 0}</b></div>
-    <div class="kpi"><span>Proposta média</span><b style="font-size:19px">${ticket ? fmtMoeda(ticket) : '—'}</b></div>`;
+    <div class="kpi" title="Média do que estes clientes já tinham orçado com outra empresa. NÃO é o preço da Energy PRO — o ticket médio fica na tela de Propostas."
+      ><span>Concorrente (média)</span><b style="font-size:19px">${media ? fmtMoeda(media) : '—'}</b></div>`;
 }
 
 async function exportarExcel() {
@@ -780,7 +789,8 @@ async function exportarExcel() {
     ['Área',              'texto',   10, r => r.zona === 'urbana' ? 'Urbana' : r.zona === 'rural' ? 'Rural' : ''],
     ['Tipo de telhado',   'texto',   22, r => r.tipo_telhado ? rotTelhado(r.tipo_telhado) : ''],
     ['Kit',               'texto',   34, r => r.kit_descricao || ''],
-    ['Valor da proposta', 'moeda',   18, r => r.valor_proposta],
+    // Não é a nossa proposta: é o que o cliente já tinha em mãos.
+    ['Orçamento do concorrente', 'moeda', 24, r => r.valor_proposta],
     ['Origem',            'texto',   20, r => rotOrigem(r.origem || 'equipe')],
     ['Status',            'texto',   17, r => rotStatus(r.status)],
     ['Anexos',            'inteiro',  9, r => r.cadastro_arquivos?.[0]?.count || 0],
@@ -823,12 +833,15 @@ function folhaResumo(data) {
   STATUS.forEach(([v, rot]) => linhas.push([rot, String(conta('status', v, '')), null]));
   linhas.push([null, null, null], ['Por origem', null, null]);
   ORIGENS.forEach(([v, rot]) => linhas.push([rot, String(conta('origem', v, 'equipe')), null]));
+  // Estes três números descrevem a CONCORRÊNCIA, não a Energy PRO. Os rótulos
+  // antigos ("Propostas", "Soma das propostas", "Proposta média") liam como se
+  // fossem o desempenho da casa — numa planilha que vai para reunião.
   linhas.push(
     [null, null, null],
-    ['Propostas', null, null],
-    ['Cadastros com proposta', String(propostas.length), null],
-    ['Soma das propostas', null, soma || null],
-    ['Proposta média', null, propostas.length ? soma / propostas.length : null]
+    ['Orçamento que o cliente já tinha', null, null],
+    ['Clientes que chegaram com orçamento', String(propostas.length), null],
+    ['Soma dos orçamentos do concorrente', null, soma || null],
+    ['Média do concorrente', null, propostas.length ? soma / propostas.length : null]
   );
 
   const f = folha('Resumo', [
@@ -918,7 +931,7 @@ async function telaFicha(id) {
         ${item('Área', r.zona === 'urbana' ? 'Urbana' : r.zona === 'rural' ? 'Rural' : '')}
         ${item('Tipo de telhado', r.tipo_telhado ? rotTelhado(r.tipo_telhado) : '')}
         ${item('Kit de placas e inversor', r.kit_descricao)}
-        ${item('Valor da proposta', r.valor_proposta ? fmtMoeda(r.valor_proposta) : '')}
+        ${item('Orçamento do concorrente', r.valor_proposta ? fmtMoeda(r.valor_proposta) : '')}
       </dl>
     </section>
 
@@ -1084,7 +1097,7 @@ function telaEditar(r, arqs) {
             <select id="e_tipo_telhado" name="tipo_telhado"><option value="">Selecione</option>
             ${TELHADOS.map(([v, rot]) => `<option value="${v}" ${r.tipo_telhado === v ? 'selected' : ''}>${esc(rot)}</option>`).join('')}</select></div>
           ${campo('kit_descricao', 'Kit de placas e inversor', r.kit_descricao)}
-          ${campo('valor_proposta', 'Valor da proposta', r.valor_proposta ? fmtMoeda(r.valor_proposta) : '', 'moeda')}
+          ${campo('valor_proposta', 'Orçamento do concorrente', r.valor_proposta ? fmtMoeda(r.valor_proposta) : '', 'moeda')}
         </div></div>
       </section>
 

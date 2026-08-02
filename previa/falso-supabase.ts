@@ -37,6 +37,8 @@ const RPCS: Record<string, unknown> = {
   proposta_publica_ler: PUBLICA,
   proposta_publica_decidir: { ok: true },
   preparar_envio_proposta: { token: 'a1b2c3d4e5f60718293a4b5c6d7e8f90', dias: 30 },
+  save_crm_activity: 'a9',
+  move_crm_lead: 'l1',
   duplicar_proposta: 'p9',
   converter_proposta_em_contrato: 'ct1',
 };

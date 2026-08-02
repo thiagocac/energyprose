@@ -50,7 +50,7 @@ const CAMPOS = [
   { n: 'numero_instalacao', rot: 'Nº da conta / instalação', ph: 'Código do cliente na conta', mask: maskIdent, modo: 'numeric', max: 20 },
   { n: 'consumo_medio_kwh', rot: 'Consumo médio (kWh/mês)',  ph: 'Ex.: 480', mask: maskInt, modo: 'numeric' },
   { n: 'valor_medio_conta', rot: 'Valor médio da conta',     ph: 'R$ 0,00', mask: maskMoeda, modo: 'numeric' },
-  { n: 'valor_proposta',    rot: 'Valor da proposta',        ph: 'R$ 0,00', mask: maskMoeda, modo: 'numeric' },
+  { n: 'valor_proposta',    rot: 'Já tem orçamento de outra empresa? Valor', ph: 'R$ 0,00', mask: maskMoeda, modo: 'numeric' },
   { n: 'kit_descricao',     rot: 'Kit de placas e inversor', ph: 'Ex.: 12 placas 585W + inversor 5 kW', area: true, largo: true }
 ];
 const TOTAL_ITENS = 13 + SLOTS.length;   // 11 campos + Área + Tipo de telhado + 5 anexos
@@ -556,7 +556,7 @@ function resumoTexto(d, nArq) {
     ['Área', d.zona && (d.zona === 'urbana' ? 'Urbana' : 'Rural')],
     ['Tipo de telhado', d.tipo_telhado && rotTelhado(d.tipo_telhado)],
     ['Kit', d.kit_descricao],
-    ['Valor da proposta', d.valor_proposta && fmtMoeda(Number(d.valor_proposta))]
+    ['Orçamento de outra empresa', d.valor_proposta && fmtMoeda(Number(d.valor_proposta))]
   ]);
   L.push('', '4. DOCUMENTOS', nArq ? `${nArq} arquivo(s) anexado(s)` : 'Nenhum arquivo anexado');
   return L.join('\n');

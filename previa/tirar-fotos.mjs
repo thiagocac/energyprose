@@ -104,6 +104,31 @@ await foto('senha-feito', 'funil', 1366, 900, async (pag) => {
 });
 await foto('senha-celular', 'funil', 390, 780, abrirSenha);
 
+// Nova oportunidade e os indicadores de resultado.
+await foto('funil-nova-oportunidade', 'funil', 1366, 950, async (pag) => {
+  await pag.getByRole('button', { name: 'Nova oportunidade' }).click();
+  await pag.waitForTimeout(250);
+  await pag.locator('.painel input').first().fill('João Batista');
+  await pag.locator('.painel input').nth(1).fill('Encruzilhada');
+  await pag.locator('.painel input').nth(2).fill('77 99814-2200');
+  await pag.locator('.painel input').nth(4).fill('34.000');
+  await pag.locator('.painel select').first().selectOption({ index: 1 });
+  await pag.waitForTimeout(250);
+});
+await foto('propostas-resultado', 'propostas', 1366, 900);
+
+// Funil: busca, "Falei hoje" aberto, e o motivo da perda no card.
+await foto('funil-busca', 'funil', 1366, 900, async (pag) => {
+  await pag.getByRole('searchbox').fill('padaria');
+  await pag.waitForTimeout(300);
+});
+await foto('funil-falei-hoje', 'funil', 1366, 900, async (pag) => {
+  await pag.getByRole('button', { name: 'Falei hoje' }).first().click();
+  await pag.waitForTimeout(250);
+  await pag.locator('.anotar input').fill('Ligou perguntando o prazo de instalação');
+  await pag.waitForTimeout(200);
+});
+
 await foto('funil-desktop', 'funil', 1366, 900);
 await foto('funil-celular', 'funil', 390, 780);
 await foto('publica-celular', 'publica', 390, 780);
