@@ -9,7 +9,6 @@ import {
   obterFunil, moverLead, leadViraProposta, registrarAtividade, salvarLead,
   type Funil as DadosFunil, type Lead, type Etapa,
 } from '../lib/api/crm';
-import { gerarDocumentoPdf, abrirAbaDiferida } from '../lib/api/documentos';
 
 /**
  * Oportunidade digitada à mão.
@@ -148,24 +147,6 @@ export function Funil() {
     onError: (e: Error) => setErro(e.message),
   });
 
-  // A aba tem de abrir no clique: se abrisse depois da geração, o bloqueador de
-  // pop-up barraria, porque o gesto do usuário já teria passado.
-  const [gerando, setGerando] = useState<string | null>(null);
-  async function gerarPdf(propostaId: string) {
-    const aba = abrirAbaDiferida('Gerando a proposta…');
-    setGerando(propostaId); setErro('');
-    try {
-      const doc = await gerarDocumentoPdf('proposta', propostaId);
-      aba.mostrar(doc.blob, doc.nomeArquivo);
-      if (doc.fontes === 'padrao') {
-        setErro('PDF gerado, mas com as fontes padrão: o site ainda não está servindo /fontes/*.ttf.');
-      }
-    } catch (e) {
-      aba.falhar((e as Error).message);
-      setErro((e as Error).message);
-    } finally { setGerando(null); }
-  }
-
   const ultimaAtividade = useMemo(
     () => new Map((funil.data?.activities ?? []).map((a) => [a.lead_id, a])),
     [funil.data?.activities],
@@ -302,7 +283,6 @@ export function Funil() {
                     atividade={ultimaAtividade.get(lead.id)?.subject ?? null}
                     podeEditar={escrever}
                     ocupado={converter.isPending}
-                    gerando={gerando === lead.proposta_id}
                     arrastavel={escrever}
                     arrastando={arrastando === lead.id}
                     aoIniciarArraste={(ev) => {
@@ -313,7 +293,6 @@ export function Funil() {
                     aoTerminarArraste={() => { setArrastando(null); setAlvo(null); }}
                     aoMover={(etapaId) => moverPedindoMotivo(lead.id, etapaId)}
                     aoConverter={() => converter.mutate(lead.id)}
-                    aoGerarPdf={() => lead.proposta_id && void gerarPdf(lead.proposta_id)}
                     anotando={anotar.isPending}
                     aoAnotar={(subject, due_at) => anotar.mutate({ lead_id: lead.id, subject, due_at })}
                   />
@@ -430,15 +409,15 @@ const PRAZOS = [
 ];
 
 function CardLead({
-  lead, etapas, atividade, podeEditar, ocupado, gerando,
+  lead, etapas, atividade, podeEditar, ocupado,
   arrastavel, arrastando, aoIniciarArraste, aoTerminarArraste,
-  aoMover, aoConverter, aoGerarPdf, anotando, aoAnotar,
+  aoMover, aoConverter, anotando, aoAnotar,
 }: {
   lead: Lead; etapas: Etapa[]; atividade: string | null; podeEditar: boolean;
-  ocupado: boolean; gerando: boolean;
+  ocupado: boolean;
   arrastavel: boolean; arrastando: boolean;
   aoIniciarArraste: (ev: React.DragEvent) => void; aoTerminarArraste: () => void;
-  aoMover: (etapaId: string) => void; aoConverter: () => void; aoGerarPdf: () => void;
+  aoMover: (etapaId: string) => void; aoConverter: () => void;
   anotando: boolean; aoAnotar: (assunto: string, quando: string | null) => void;
 }) {
   const vencida = !!lead.next_action_at && new Date(lead.next_action_at) < new Date();
@@ -537,10 +516,13 @@ function CardLead({
                 Falei hoje
               </button>
             ) : null}
+            {/* Antes era "Gerar proposta (PDF)", e falhava sempre: a proposta
+                recém-criada nasce sem itens, e a função recusa com "a proposta
+                está sem itens". O passo seguinte real é precificar — então o
+                card leva direto para o painel dela, e o PDF fica onde se pode
+                ver o que a proposta tem dentro. */}
             {lead.proposta_id
-              ? <button className="botao discreto" disabled={gerando} onClick={aoGerarPdf}>
-                  {gerando ? 'Gerando…' : 'Gerar proposta (PDF)'}
-                </button>
+              ? <a className="botao discreto" href={`/propostas/${lead.proposta_id}`}>Abrir proposta</a>
               : <button className="botao discreto" disabled={ocupado} onClick={aoConverter}>Criar proposta</button>}
             {lead.phone ? (
               <a className="botao discreto" target="_blank" rel="noreferrer"

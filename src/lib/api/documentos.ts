@@ -50,6 +50,25 @@ export async function gerarDocumentoPdf(
 }
 
 /**
+ * Link temporário para o documento que JÁ foi emitido e arquivado.
+ *
+ * Sem isto, o único botão da tela gerava um PDF NOVO a cada clique — que pode
+ * sair diferente do que o cliente tem na mão, porque `config_empresa`
+ * (benefícios, condições, prazos) ou o catálogo podem ter mudado desde o envio.
+ * Discutir preço com dois documentos diferentes é perder a conversa.
+ *
+ * O bucket `documentos` é privado; quem libera é a política
+ * `equipe le documentos do bucket`, que exige `is_equipe()`.
+ */
+export async function linkDoDocumento(caminho: string): Promise<string> {
+  const { data, error } = await sb.storage.from('documentos').createSignedUrl(caminho, 300);
+  if (error || !data?.signedUrl) {
+    throw new Error(error?.message ?? 'Não foi possível abrir o arquivo arquivado.');
+  }
+  return data.signedUrl;
+}
+
+/**
  * Abre o PDF numa aba já existente. A aba é aberta ANTES da chamada, no clique,
  * senão o bloqueador de pop-up do navegador barra: o gesto do usuário já passou
  * quando a geração termina.

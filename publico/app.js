@@ -938,7 +938,16 @@ async function telaFicha(id) {
     <section class="card">
       <div class="card-head"><span class="card-num">4</span><h2>Documentos</h2></div>
       <div class="card-body">
-        ${(arqs || []).length ? `<div class="anexos">${SLOTS.filter(s => porSlot[s.k]).map(s => `
+        <!-- ARMADILHA CORRIGIDA: esta lista era `SLOTS.filter(s => porSlot[s.k])`
+             — só desenhava o que TEM arquivo. Estes cinco anexos são o dossiê
+             da homologação, e o que interessa na hora de homologar é
+             justamente o que FALTA. Quem abria a ficha via o que tinha, não
+             via o buraco, e descobria a CNH ausente com a usina já instalada e
+             sem gerar crédito. Agora os cinco aparecem sempre. -->
+        <div class="anexos-contagem">
+          ${SLOTS.filter(s => porSlot[s.k]).length} de ${SLOTS.length} documentos
+        </div>
+        <div class="anexos">${SLOTS.map(s => porSlot[s.k] ? `
           <div class="anexo-grupo">
             <strong>${esc(s.rot)}</strong>
             <div class="anexo-lista">
@@ -951,8 +960,11 @@ async function telaFicha(id) {
                   <button class="btn btn-neutro btn-sm" data-baixar="${esc(a.storage_path)}" data-nome="${esc(a.nome_original)}">Baixar</button>
                 </div>`).join('')}
             </div>
-          </div>`).join('')}</div>`
-        : '<div class="vazio-estado" style="padding:28px"><b>Nenhum documento anexado</b>Use o botão Editar para adicionar.</div>'}
+          </div>` : `
+          <div class="anexo-grupo faltando">
+            <strong>${esc(s.rot)}</strong>
+            <div class="anexo-falta">Não enviado</div>
+          </div>`).join('')}</div>
       </div>
     </section>
 

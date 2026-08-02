@@ -26,6 +26,10 @@ export function App() {
               <Routes>
                 <Route path="/crm" element={<Barreira><Funil /></Barreira>} />
                 <Route path="/propostas" element={<Barreira><Propostas /></Barreira>} />
+                {/* Vindo do funil: abre a lista já com esta proposta no painel,
+                    para precificar sem procurar o registro na tabela. O Netlify
+                    já encaminhava /propostas/* e o roteador não usava. */}
+                <Route path="/propostas/:id" element={<Barreira><Propostas /></Barreira>} />
                 <Route path="/contratos" element={<Barreira><Contratos /></Barreira>} />
                 <Route path="/catalogo" element={<Barreira><Catalogo /></Barreira>} />
                 <Route path="/configuracoes" element={<Barreira><Configuracoes /></Barreira>} />

@@ -1,11 +1,12 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
+import { useNavigate, useParams } from 'react-router-dom';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Cabecalho } from '../componentes/Layout';
 import { BarraFiltro, casa } from '../componentes/Filtros';
 import { useAuth } from '../lib/auth';
 import { moeda, numero, dataBr, dataFutura, linkWhatsapp, soDigitos, paraNumero } from '../lib/formato';
 import { kwp, geracaoMensal, sugerirModulos, razaoCcCa } from '../lib/solar';
-import { gerarDocumentoPdf, abrirAbaDiferida } from '../lib/api/documentos';
+import { gerarDocumentoPdf, abrirAbaDiferida, linkDoDocumento } from '../lib/api/documentos';
 import {
   listarPropostas, obterProposta, salvarProposta, duplicarProposta,
   prepararEnvio, converterEmContrato, arquivarProposta, acompanhar,
@@ -55,8 +56,12 @@ export function Propostas() {
   // que enviava: se o pop-up fosse bloqueado, não havia como recuperá-lo pela
   // interface — o único caminho era reenviar, que emite outro token.
   const [envio, setEnvio] = useState<null | {
-    numero: string; link: string; whats: string; faltaPdf: string; abriu: boolean;
+    numero: string; link: string; whats: string; correio: string;
+    faltaPdf: string; abriu: boolean;
   }>(null);
+  const { id: idDaRota } = useParams();
+  const navegar = useNavigate();
+  const jaAbriuDaRota = useRef(false);
   const [form, setForm] = useState<Form | null>(null);
   const [itens, setItens] = useState<ItemProposta[]>([]);
   const [ocupado, setOcupado] = useState<string | null>(null);
@@ -218,6 +223,19 @@ export function Propostas() {
     } catch (e) { setErro((e as Error).message); } finally { setOcupado(null); }
   }
 
+  /**
+   * Chegou por /propostas/<id> — o link que o funil oferece. Abre o painel uma
+   * vez e limpa a rota, para que fechar o painel não reabra sozinho e para o
+   * botão Voltar do navegador não ficar preso nesta proposta.
+   */
+  useEffect(() => {
+    if (!idDaRota || jaAbriuDaRota.current) return;
+    jaAbriuDaRota.current = true;
+    void abrir(idDaRota).then(() => navegar('/propostas', { replace: true }));
+    // `abrir` é recriada a cada render; a trava do ref é o que garante uma vez só.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [idDaRota]);
+
   // ===== Itens =====
   function addServico(id: string) {
     const s = (servicos.data ?? []).find((x) => x.id === id);
@@ -310,10 +328,15 @@ export function Propostas() {
       const dados = await obterProposta(p.id);
       // O número do cadastro é o mesmo número. Reclamar de um dado que o
       // sistema já tem custava três passos: erro, editar, digitar, salvar.
-      const doCadastro = (cadastros.data ?? []).find((c) => c.id === p.cadastro_id)?.whatsapp;
-      const fone = dados.recipient_whatsapp || doCadastro || '';
-      if (!fone) {
-        throw new Error('Sem WhatsApp nem na proposta nem no cadastro do cliente. Informe o número para poder enviar.');
+      const cad = (cadastros.data ?? []).find((c) => c.id === p.cadastro_id);
+      const fone = dados.recipient_whatsapp || cad?.whatsapp || '';
+      const email = dados.recipient_email || cad?.email || '';
+      // Cliente pessoa jurídica costuma dar e-mail e não celular. A tela
+      // bloqueava o envio nesses casos, e o lead saía por fora do sistema —
+      // sem token, sem registro de abertura, sem follow-up, sem validade.
+      // Agora só barra quando não há NENHUM caminho de contato.
+      if (!fone && !email) {
+        throw new Error('Este cliente não tem WhatsApp nem e-mail. Edite a proposta e informe um dos dois.');
       }
       const r = await prepararEnvio(p.id, dados.recipient_email, dados.recipient_name, fone);
 
@@ -337,12 +360,37 @@ export function Propostas() {
         + `(${p.numero}), no valor de ${moeda(p.valor_total)}.\n\n`
         + `Ver os detalhes e responder: ${base}`
         + (faltaPdf ? '' : `\n\nBaixar a proposta em PDF: ${base}/pdf`);
-      const whats = linkWhatsapp(fone, msg);
-      setEnvio({ numero: p.numero ?? '', link: base, whats, faltaPdf, abriu: aba.irPara(whats) });
+      const whats = fone ? linkWhatsapp(fone, msg) : '';
+      // O `mailto:` abre o programa de e-mail da própria pessoa: nenhum
+      // servidor de envio, nenhuma dependência nova, e a proposta fica
+      // corretamente marcada como enviada de qualquer jeito.
+      const correio = email
+        ? `mailto:${encodeURIComponent(email)}`
+          + `?subject=${encodeURIComponent(`Proposta ${p.numero ?? ''} — Energy PRO`)}`
+          + `&body=${encodeURIComponent(msg)}`
+        : '';
+      setEnvio({
+        numero: p.numero ?? '', link: base, whats, correio, faltaPdf,
+        abriu: whats ? aba.irPara(whats) : (aba.falhar('Envie o link pelo e-mail, na tela.'), false),
+      });
       void qc.invalidateQueries({ queryKey: ['propostas'] });
     } catch (e) {
       aba.falhar((e as Error).message);
       setErro((e as Error).message);
+    } finally { setOcupado(null); }
+  }
+
+  /**
+   * Abrir o documento que o cliente REALMENTE recebeu, e não um novo.
+   * A aba nasce no clique; o link assinado vale 5 minutos.
+   */
+  async function abrirArquivado(caminho: string, chave: string) {
+    const aba = abrirAbaDiferida('Abrindo o documento enviado…');
+    setOcupado(chave); setErro('');
+    try {
+      aba.irPara(await linkDoDocumento(caminho));
+    } catch (e) {
+      aba.falhar((e as Error).message); setErro((e as Error).message);
     } finally { setOcupado(null); }
   }
 
@@ -384,7 +432,7 @@ export function Propostas() {
     <>
       <Cabecalho
         kicker="Comercial" titulo="Propostas"
-        sub="O sistema calcula a potência e a geração; você confere o preço e envia pelo WhatsApp com link de aceite."
+        sub="O sistema calcula a potência e a geração; você confere o preço e envia por WhatsApp ou e-mail, com link de aceite."
         acao={escrever ? <button className="botao" onClick={novo}>Nova proposta</button> : undefined}
       />
 
@@ -404,13 +452,15 @@ export function Propostas() {
             <b>
               {envio.abriu
                 ? `Proposta ${envio.numero} pronta — o WhatsApp abriu em outra aba.`
-                : `Proposta ${envio.numero} pronta, mas o navegador bloqueou a janela do WhatsApp.`}
+                : envio.whats
+                  ? `Proposta ${envio.numero} pronta, mas o navegador bloqueou a janela do WhatsApp.`
+                  : `Proposta ${envio.numero} pronta. Este cliente não tem WhatsApp — mande por e-mail ou copie o link.`}
             </b>
             <button className="botao discreto" onClick={() => setEnvio(null)} aria-label="Fechar o aviso de envio">
               Fechar
             </button>
           </div>
-          {!envio.abriu ? (
+          {!envio.abriu && envio.whats ? (
             <p style={{ margin: '4px 0 8px' }}>
               Use o botão abaixo para abrir, ou copie o link e mande você mesmo.
             </p>
@@ -424,9 +474,14 @@ export function Propostas() {
           <div className="envio-link">
             <code>{envio.link}</code>
             <button className="botao discreto" onClick={() => void copiar(envio.link)}>Copiar link</button>
-            <a className="botao discreto" href={envio.whats} target="_blank" rel="noopener">
-              {envio.abriu ? 'Abrir o WhatsApp de novo' : 'Abrir o WhatsApp'}
-            </a>
+            {envio.whats ? (
+              <a className="botao discreto" href={envio.whats} target="_blank" rel="noopener">
+                {envio.abriu ? 'Abrir o WhatsApp de novo' : 'Abrir o WhatsApp'}
+              </a>
+            ) : null}
+            {envio.correio ? (
+              <a className="botao discreto" href={envio.correio}>Mandar por e-mail</a>
+            ) : null}
           </div>
         </div>
       ) : null}
@@ -523,8 +578,18 @@ export function Propostas() {
                       <div style={{ display: 'flex', gap: 5, flexWrap: 'wrap' }}>
                         {escrever && (p.status === 'rascunho' || p.status === 'enviada')
                           ? <button className="botao discreto" disabled={!!ocupado} onClick={() => void abrir(p.id)}>Editar</button> : null}
+                        {/* Dois botões diferentes de propósito. "PDF enviado"
+                            abre o arquivo que o cliente tem; "Gerar PDF" cria
+                            um novo, que pode sair diferente se as configurações
+                            ou o catálogo mudaram desde então. */}
+                        {p.pdf_path ? (
+                          <button className="botao discreto" disabled={!!ocupado}
+                                  onClick={() => void abrirArquivado(p.pdf_path as string, `arq:${p.id}`)}>
+                            {ocupado === `arq:${p.id}` ? 'Abrindo…' : 'PDF enviado'}
+                          </button>
+                        ) : null}
                         <button className="botao discreto" disabled={!!ocupado} onClick={() => void pdf(p.id)}>
-                          {ocupado === `pdf:${p.id}` ? 'Gerando…' : 'PDF'}
+                          {ocupado === `pdf:${p.id}` ? 'Gerando…' : p.pdf_path ? 'Gerar de novo' : 'PDF'}
                         </button>
                         {escrever && ['rascunho', 'enviada'].includes(p.status)
                           ? <button className="botao discreto" disabled={!!ocupado} onClick={() => void enviar(p)}>
@@ -701,6 +766,23 @@ export function Propostas() {
                     {form.kwpManual || form.geracaoManual
                       ? ' Você editou um número à mão — o cálculo automático não sobrescreve mais.'
                       : ''}
+                  </p>
+
+                  {/* Esta caixa faltava, e só ela. O campo já existia na tabela,
+                      já era lido ao abrir a proposta e já era gravado ao salvar
+                      — não havia onde digitar, então estava vazio em 100% dos
+                      registros. Quem sobe no telhado em Barra do Choça mede,
+                      olha o padrão de entrada, e o resultado da viagem vivia na
+                      cabeça até a proposta ser escrita. */}
+                  <label className="campo" style={{ marginTop: 14, marginBottom: 0 }}>
+                    <span>O que você viu na visita · uso interno</span>
+                    <textarea rows={3} value={form.observacoes_tecnicas}
+                              placeholder="Ex.: telhado cerâmico, 4 águas, padrão de entrada 63 A monofásico, precisa trocar disjuntor. Quadro a 18 m do local dos módulos."
+                              onChange={(e) => setForm({ ...form, observacoes_tecnicas: e.target.value })} />
+                  </label>
+                  <p className="meta" style={{ marginTop: 4 }}>
+                    Não sai no PDF do cliente — fica para quem dimensiona e para
+                    quem vai executar a obra.
                   </p>
                 </section>
               ) : null}

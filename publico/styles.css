@@ -253,6 +253,16 @@ tbody tr:last-child td{border-bottom:none}
 .anexo .ico{width:30px;height:30px;border-radius:7px;background:var(--bg-frio);display:flex;align-items:center;justify-content:center;flex:none;font-size:11px;font-weight:700;color:var(--navy-600)}
 .anexo .nome{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 
+/* Slot sem arquivo. Ele existe na tela de propósito: na hora de homologar, o
+   que importa é o que FALTA, e antes o vazio simplesmente não era desenhado. */
+.anexos-contagem{font-size:12px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:var(--texto-fr);margin-bottom:12px}
+.anexo-grupo.faltando strong{color:var(--texto-fr);font-weight:600}
+.anexo-falta{
+  display:flex;align-items:center;gap:8px;padding:10px 13px;font-size:13px;
+  border:1px dashed var(--linha);border-radius:9px;background:transparent;color:var(--texto-fr)
+}
+.anexo-falta::before{content:'—';font-weight:700;opacity:.6}
+
 .timeline{list-style:none;display:flex;flex-direction:column;gap:0}
 .timeline li{display:flex;gap:12px;padding:10px 0;border-bottom:1px solid var(--bg-frio);font-size:13.5px}
 .timeline li:last-child{border-bottom:none}

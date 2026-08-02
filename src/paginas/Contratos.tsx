@@ -5,7 +5,7 @@ import { BarraFiltro, casa } from '../componentes/Filtros';
 import { Painel } from '../componentes/Painel';
 import { useAuth } from '../lib/auth';
 import { moeda, dataBr, hojeISO, dataFutura, paraNumero } from '../lib/formato';
-import { gerarDocumentoPdf, abrirAbaDiferida } from '../lib/api/documentos';
+import { gerarDocumentoPdf, abrirAbaDiferida, linkDoDocumento } from '../lib/api/documentos';
 import {
   listarContratos, salvarContrato, arquivarContrato, lacunasDoContrato,
   ROTULO_STATUS_CONTRATO, ROTULO_TIPO, FLUXO_STATUS,
@@ -167,6 +167,17 @@ export function Contratos() {
     finally { setOcupado(null); }
   }
 
+  /** Abre o contrato JÁ emitido, em vez de fabricar outro. */
+  async function abrirArquivado(caminho: string, chave: string) {
+    const aba = abrirAbaDiferida('Abrindo o contrato emitido…');
+    setOcupado(chave); setErro(''); setAviso('');
+    try {
+      aba.irPara(await linkDoDocumento(caminho));
+    } catch (e) {
+      aba.falhar((e as Error).message); setErro((e as Error).message);
+    } finally { setOcupado(null); }
+  }
+
   async function acao(chave: string, fn: () => Promise<unknown>, ok: string) {
     setOcupado(chave); setErro(''); setAviso('');
     try {
@@ -253,7 +264,19 @@ export function Contratos() {
                           ? <div className="meta">de {c.proposta_numero}</div>
                           : <div className="meta">avulso</div>}
                       </td>
-                      <td>{c.cliente ?? '—'}<div className="meta">{c.cidade ?? ''}</div></td>
+                      <td>
+                        {c.cliente ?? '—'}
+                        <div className="meta">{c.cidade ?? ''}</div>
+                        {/* `signed_at` era gravado, selecionado, mapeado — e
+                            nunca mostrado. É a data em que o prazo contratual
+                            de entrega começa a correr; sem ela na tela,
+                            ninguém sabe se a obra está no prazo. */}
+                        {c.signed_at
+                          ? <div className="meta">assinado em {dataBr(c.signed_at)}</div>
+                          : c.status !== 'rascunho'
+                            ? <div className="meta" style={{ color: 'var(--quente-fim)' }}>sem data de assinatura</div>
+                            : null}
+                      </td>
                       <td>
                         {ROTULO_TIPO[c.tipo]}
                         {c.recorrencia
@@ -288,8 +311,17 @@ export function Contratos() {
                           {escrever
                             ? <button className="botao discreto" disabled={!!ocupado}
                                 onClick={() => abrir(c)}>Editar</button> : null}
+                          {/* O contrato assinado é o documento que vale. Gerar
+                              de novo produz outro arquivo, que pode divergir se
+                              as cláusulas ou os dados da empresa mudaram. */}
+                          {c.pdf_path ? (
+                            <button className="botao discreto" disabled={!!ocupado}
+                                    onClick={() => void abrirArquivado(c.pdf_path as string, `arq-pdf:${c.id}`)}>
+                              {ocupado === `arq-pdf:${c.id}` ? 'Abrindo…' : 'PDF emitido'}
+                            </button>
+                          ) : null}
                           <button className="botao discreto" disabled={!!ocupado} onClick={() => void pdf(c)}>
-                            {ocupado === `pdf:${c.id}` ? 'Gerando…' : 'PDF'}
+                            {ocupado === `pdf:${c.id}` ? 'Gerando…' : c.pdf_path ? 'Gerar de novo' : 'PDF'}
                           </button>
                           {escrever && c.status === 'rascunho'
                             ? <button className="botao discreto" style={{ color: 'var(--ruim)' }} disabled={!!ocupado}

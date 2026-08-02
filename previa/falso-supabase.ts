@@ -22,9 +22,16 @@ const ENCADEAVEIS = ['select', 'eq', 'neq', 'in', 'is', 'not', 'or', 'filter', '
   'insert', 'update', 'upsert', 'delete'];
 
 function consulta(tabela: string) {
-  const linhas = () => TABELAS[tabela] ?? [];
+  // `eq` é honrado de verdade. Sem isso, `obterProposta(id)` devolvia sempre a
+  // primeira linha, e não dava para fotografar caminhos que dependem de QUAL
+  // registro foi escolhido — o cliente sem WhatsApp, por exemplo.
+  const filtros: Array<[string, unknown]> = [];
+  const linhas = () => (TABELAS[tabela] ?? []).filter((r) => filtros.every(
+    ([col, val]) => String((r as Record<string, unknown>)[col] ?? '') === String(val),
+  ));
   const q: Record<string, unknown> = {};
   for (const m of ENCADEAVEIS) q[m] = () => q;
+  q.eq = (coluna: string, valor: unknown) => { filtros.push([coluna, valor]); return q; };
   q.maybeSingle = () => Promise.resolve({ data: linhas()[0] ?? null, error: null });
   q.single = q.maybeSingle;
   q.then = (ok: (v: unknown) => unknown, falha?: (e: unknown) => unknown) =>

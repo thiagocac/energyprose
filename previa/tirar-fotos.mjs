@@ -28,6 +28,9 @@ async function foto(nome, tela, largura, altura, antes, opcoes = {}) {
     await pag.addInitScript(() => { window.open = () => null; });
   }
   const erros = [];
+  // Sem isto o Playwright DESCARTA todo confirm/prompt, e o caminho protegido
+  // por confirmação (reenviar, arquivar, perder) nunca chega a acontecer.
+  pag.on('dialog', (d) => void d.accept());
   pag.on('console', (m) => { if (m.type() === 'error') erros.push(m.text()); });
   pag.on('pageerror', (e) => erros.push('pageerror: ' + e.message));
   await pag.goto(`${BASE}/?t=${tela}${opcoes.extra ?? ''}`, { waitUntil: 'networkidle' });
@@ -116,6 +119,26 @@ await foto('funil-nova-oportunidade', 'funil', 1366, 950, async (pag) => {
   await pag.waitForTimeout(250);
 });
 await foto('propostas-resultado', 'propostas', 1366, 900);
+
+// Envio para cliente que só tem e-mail (Fazenda Santa Luzia, PRO-2026-0034).
+await foto('envio-por-email', 'propostas', 1366, 900, async (pag) => {
+  await pag.getByRole('row', { name: /PRO-2026-0034/ })
+           .getByRole('button', { name: 'Reenviar' }).click();
+  await pag.waitForTimeout(900);
+});
+
+// A caixa de observações da visita técnica.
+await foto('visita-tecnica', 'propostas', 1366, 1000, async (pag) => {
+  await pag.getByRole('button', { name: 'Nova proposta' }).click();
+  await pag.waitForTimeout(250);
+  await pag.locator('.painel select').first().selectOption({ index: 1 });
+  await pag.waitForTimeout(200);
+  await pag.locator('.painel textarea').first().fill(
+    'Telhado cerâmico, 4 águas, boa orientação norte. Padrão de entrada 63 A monofásico — '
+    + 'precisa trocar o disjuntor. Quadro a 18 m do local dos módulos.');
+  await pag.locator('.painel textarea').first().scrollIntoViewIfNeeded();
+  await pag.waitForTimeout(250);
+});
 
 // Funil: busca, "Falei hoje" aberto, e o motivo da perda no card.
 await foto('funil-busca', 'funil', 1366, 900, async (pag) => {

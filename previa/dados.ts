@@ -66,6 +66,8 @@ export const PROPOSTAS = [
     proposta_sistema: { potencia_instalada_kwp: 24.4, modulo_qtd: 40 },
   },
   { // aberta e sem responder
+    recipient_whatsapp: null, recipient_email: 'contato@santaluzia.com.br',
+    recipient_name: 'Fazenda Santa Luzia', itens: [], sistema: null,
     id: 'p3', numero: 'PRO-2026-0034', revision: 0, tipo: 'servico', linha: 'homologacao',
     titulo: 'Homologação junto à concessionária', validade: '2026-08-20', status: 'enviada',
     valor_total: 2400, cadastro_id: 'c3', contrato_id: null,
