@@ -989,23 +989,37 @@ async function telaFicha(id) {
   ligarSair();
 
   // --- ações ---
+  // ARMADILHA JÁ PAGA: `gravar()` LANÇA em caso de falha e devolve `undefined`
+  // quando dá certo. Estes três pontos faziam `const { error } = await gravar(...)`
+  // — desestruturar `undefined` estoura um TypeError logo DEPOIS da escrita ter
+  // acontecido. O dado ia para o banco e a tela morria em silêncio: sem
+  // confirmação, sem evento na trilha, e no formulário de edição sem subir os
+  // anexos que a pessoa tinha acabado de escolher.
   $('#mstatus').onchange = async e => {
     const novo = e.target.value;
-    const { error } = await gravar('cadastros', { status: novo }, id, 'status');
-    $('#aviso-ficha').innerHTML = error
-      ? `<div class="aviso aviso-erro">Erro ao mudar status: ${esc(error.message)}</div>`
-      : `<div class="aviso aviso-ok">Status alterado para <b>${esc(rotStatus(novo))}</b>.</div>`;
-    if (!error) registrarEvento(id, 'editou', { campo: 'status', para: novo });
+    try {
+      await gravar('cadastros', { status: novo }, id, 'status');
+      $('#aviso-ficha').innerHTML =
+        `<div class="aviso aviso-ok">Status alterado para <b>${esc(rotStatus(novo))}</b>.</div>`;
+      registrarEvento(id, 'editou', { campo: 'status', para: novo });
+    } catch (err) {
+      $('#aviso-ficha').innerHTML =
+        `<div class="aviso aviso-erro">Erro ao mudar status: ${esc(err.message)}</div>`;
+    }
   };
 
   $('#bobs').onclick = async () => {
     const b = $('#bobs'); b.disabled = true; b.textContent = 'Salvando…';
-    const { error } = await gravar('cadastros', { observacoes: $('#obs').value.trim() || null }, id, 'observações');
-    b.disabled = false; b.textContent = 'Salvar observações';
-    $('#aviso-ficha').innerHTML = error
-      ? `<div class="aviso aviso-erro">${esc(error.message)}</div>`
-      : '<div class="aviso aviso-ok">Observações salvas.</div>';
-    if (!error) registrarEvento(id, 'editou', { campo: 'observacoes' });
+    try {
+      await gravar('cadastros', { observacoes: $('#obs').value.trim() || null }, id, 'observações');
+      $('#aviso-ficha').innerHTML = '<div class="aviso aviso-ok">Observações salvas.</div>';
+      registrarEvento(id, 'editou', { campo: 'observacoes' });
+    } catch (err) {
+      $('#aviso-ficha').innerHTML = `<div class="aviso aviso-erro">${esc(err.message)}</div>`;
+    } finally {
+      // No `finally`: antes, uma falha deixava o botão preso em "Salvando…".
+      b.disabled = false; b.textContent = 'Salvar observações';
+    }
   };
 
   $$('[data-ver]').forEach(b => {
@@ -1205,7 +1219,12 @@ function telaEditar(r, arqs) {
     const bt = $('#bsalvar'); bt.disabled = true; bt.innerHTML = '<span class="spin"></span> Salvando…';
     const zona = f.querySelector('input[name="zona"]:checked');
 
-    const { error } = await gravar('cadastros', {
+    // Ver a armadilha comentada na ficha: `gravar()` lança e não devolve nada.
+    // Aqui o estrago era o pior dos três — o cadastro era salvo e o laço de
+    // upload logo abaixo NUNCA rodava, então os arquivos que a pessoa acabou de
+    // anexar não subiam, e ela saía da tela achando que tinha anexado.
+    try {
+      await gravar('cadastros', {
       nome: f.elements.nome.value.trim(),
       cpf: soDigitos(f.elements.cpf.value) || null,
       whatsapp: soDigitos(f.elements.whatsapp.value) || null,
@@ -1220,11 +1239,10 @@ function telaEditar(r, arqs) {
       tipo_telhado: f.elements.tipo_telhado.value || null,
       kit_descricao: f.elements.kit_descricao.value.trim() || null,
       valor_proposta: moedaParaNum(f.elements.valor_proposta.value)
-    }, r.id, 'dados do cadastro');
-
-    if (error) {
+      }, r.id, 'dados do cadastro');
+    } catch (err) {
       bt.disabled = false; bt.textContent = 'Salvar alterações';
-      $('#aviso-ed').innerHTML = `<div class="aviso aviso-erro">${esc(error.message)}</div>`;
+      $('#aviso-ed').innerHTML = `<div class="aviso aviso-erro">${esc(err.message)}</div>`;
       return;
     }
 
