@@ -509,10 +509,22 @@ function telaFormulario() {
       }
     }
 
-    // Só vira "novo" quando os uploads terminam sem falha — evita cadastro sem anexo silencioso
+    // Só vira "novo" quando os uploads terminam sem falha — evita cadastro sem
+    // anexo silencioso.
+    //
+    // O try/catch é o QUARTO ponto da mesma armadilha: `gravar()` LANÇA, e aqui
+    // o estouro viria DEPOIS de o cadastro estar criado e os anexos já no
+    // bucket. O botão ficaria preso em "Salvando…", a tela de sucesso nunca
+    // apareceria, e o operador — sem confirmação nenhuma — refaria tudo,
+    // duplicando cliente e arquivos. Falhar a promoção de status é detalhe;
+    // esconder que o cadastro existe, não é.
     if (!falhas.length) {
-      await gravar('cadastros', { status: 'novo' }, novo.id, 'status do novo cadastro');
-      novo.status = 'novo';
+      try {
+        await gravar('cadastros', { status: 'novo' }, novo.id, 'status do novo cadastro');
+        novo.status = 'novo';
+      } catch (err) {
+        falhas.push('mudança de status (' + err.message + ')');
+      }
     }
     await registrarEvento(novo.id, 'criou', {
       arquivos: pendentes.length, falhas: falhas.length

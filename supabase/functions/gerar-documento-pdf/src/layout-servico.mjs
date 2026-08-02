@@ -430,7 +430,8 @@ function desenhaQr(p, qr, { x, y, size }) {
   const cell = (size - 2 * pad) / n;
   for (let r = 0; r < n; r++) {
     for (let c = 0; c < n; c++) {
-      if (!qr.get(c, r)) continue;
+      // `get(linha, coluna)` — ver o comentário igual em layout-proposta.
+      if (!qr.get(r, c)) continue;
       rect(p, { x: x + pad + c * cell, y: y + pad + r * cell, w: cell + 0.02, h: cell + 0.02, color: C.banda });
     }
   }

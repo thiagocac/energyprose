@@ -338,7 +338,11 @@ export function Propostas() {
       if (!fone && !email) {
         throw new Error('Este cliente não tem WhatsApp nem e-mail. Edite a proposta e informe um dos dois.');
       }
-      const r = await prepararEnvio(p.id, dados.recipient_email, dados.recipient_name, fone);
+      // O nome e o e-mail seguem a mesma regra do telefone: o do cadastro vale
+      // quando a proposta não tem o seu. Antes, `recipient_email` ia cru — o
+      // botão de e-mail na tela usava o do cadastro e a RPC congelava `null`.
+      const nome = dados.recipient_name || cad?.nome || '';
+      const r = await prepararEnvio(p.id, email || null, nome || null, fone);
 
       // O PDF é gerado DEPOIS de preparar o envio, que é quando a revisão fica
       // congelada — assim o arquivo corresponde exatamente ao que o cliente vê
@@ -356,8 +360,12 @@ export function Propostas() {
       }
 
       const base = `${window.location.origin}/p/${r.token}`;
-      const msg = `Olá, ${dados.recipient_name ?? ''}! Segue a sua proposta da Energy PRO `
-        + `(${p.numero}), no valor de ${moeda(p.valor_total)}.\n\n`
+      // ARMADILHA JÁ PAGA: era `${dados.recipient_name ?? ''}` e `${p.numero}`
+      // crus. Proposta criada pelo funil nasce sem destinatário e sem número,
+      // então o cliente recebia literalmente "Olá, ! Segue a sua proposta da
+      // Energy PRO (null)". O nome do cadastro estava a duas linhas dali.
+      const msg = `Olá${nome ? `, ${nome}` : ''}! Segue a sua proposta da Energy PRO`
+        + `${p.numero ? ` (${p.numero})` : ''}, no valor de ${moeda(p.valor_total)}.\n\n`
         + `Ver os detalhes e responder: ${base}`
         + (faltaPdf ? '' : `\n\nBaixar a proposta em PDF: ${base}/pdf`);
       const whats = fone ? linkWhatsapp(fone, msg) : '';

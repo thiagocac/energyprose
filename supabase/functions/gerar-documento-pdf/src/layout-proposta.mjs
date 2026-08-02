@@ -201,8 +201,16 @@ function cardSistema(page, ctx, F) {
     { ic: 'panelSun', rot: 'Modelo e potência dos módulos', val: [s.modulo_descricao] },
     { ic: 'inverter', rot: 'Modelo do inversor', val: [s.inversor_descricao] },
     { ic: 'bolt', rot: 'Potência instalada', val: [`${numero(s.potencia_instalada_kwp, 2)} kWp`] },
-    { ic: 'chart', rot: 'Geração média mensal (kWh)', val: [`~ ${numero(s.geracao_media_kwh_mes)} kWh/mês`] },
-    { ic: 'shield', rot: 'Garantia dos equipamentos', val: [`Módulos: ${s.garantia_modulos_anos} anos`, `Inversor: ${s.garantia_inversor_anos} anos`] },
+    // ARMADILHA JÁ PAGA: estes três iam crus no template. `numero(null)` é
+    // "0", então geração vazia virava "~ 0 kWh/mês" — um número ERRADO, não
+    // um traço; e garantia vazia imprimia literalmente "Módulos: null anos"
+    // no documento que o cliente lê. O contrato já usava `?? '—'`; a
+    // proposta, que é a peça principal, tinha ficado de fora.
+    { ic: 'chart', rot: 'Geração média mensal (kWh)',
+      val: [s.geracao_media_kwh_mes ? `~ ${numero(s.geracao_media_kwh_mes)} kWh/mês` : '—'] },
+    { ic: 'shield', rot: 'Garantia dos equipamentos',
+      val: [`Módulos: ${s.garantia_modulos_anos ?? '—'} anos`,
+            `Inversor: ${s.garantia_inversor_anos ?? '—'} anos`] },
   ];
   const rowH = (h - hd) / linhas.length;
   const icX = x + 3.4, rotX = x + 14, rotW = 40, valX = x + 56, valW = w - 56 - 3.5 + MARG - MARG;
@@ -396,7 +404,10 @@ function desenhaQr(page, qr, { x, y, size }) {
   const cell = (size - 2 * pad) / n;
   for (let r = 0; r < n; r++) {
     for (let c = 0; c < n; c++) {
-      if (!qr.get(c, r)) continue;
+      // O BitMatrix do `qrcode` é `get(linha, coluna)`. Invertido, o símbolo
+      // sai espelhado na diagonal: leitores tolerantes ainda decodificam,
+      // mas o código emitido não é o correto.
+      if (!qr.get(r, c)) continue;
       rect(page, { x: x + pad + c * cell, y: y + pad + r * cell, w: cell + 0.02, h: cell + 0.02, color: D.banda });
     }
   }

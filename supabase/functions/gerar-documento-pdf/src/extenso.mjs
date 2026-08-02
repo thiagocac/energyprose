@@ -31,12 +31,14 @@ function inteiroExtenso(n) {
   if (n === 0) return 'zero';
   const blocos = [];
   let resto = n;
+  let ultimoBloco = 0;   // quantidade do último bloco escrito — decide o "e"
   for (const e of ESCALAS) {
     const q = Math.floor(resto / e.n);
     if (q > 0) {
       // "mil" não leva "um" na frente: 1000 = "mil", não "um mil"
       const prefixo = e.n === 1000 && q === 1 ? '' : `${inteiroExtenso(q)} `;
       blocos.push(`${prefixo}${q === 1 ? e.s : e.p}`);
+      ultimoBloco = q;
       resto %= e.n;
     }
   }
@@ -44,7 +46,12 @@ function inteiroExtenso(n) {
   if (blocos.length < 2) return blocos.join('');
   // "e" liga o último bloco quando ele é menor que cem ou múltiplo redondo de cem
   const ultimo = blocos.pop();
-  const ligaComE = resto > 0 && (resto < 100 || resto % 100 === 0);
+  // ARMADILHA JÁ PAGA: a decisão olhava só `resto` (a classe das unidades).
+  // Quando ela é zero — "um milhão e cem mil" — caía sempre na vírgula e
+  // saía "um milhão, cem mil reais". Num contrato, o extenso é o que vale.
+  // O que manda é o ÚLTIMO bloco escrito, seja ele qual for.
+  const ultimoValor = resto > 0 ? resto : ultimoBloco;
+  const ligaComE = ultimoValor < 100 || ultimoValor % 100 === 0;
   return `${blocos.join(', ')}${ligaComE ? ' e ' : ', '}${ultimo}`;
 }
 
